@@ -1,0 +1,10 @@
+# Step 2 infrastructure dependencies (Python 3.11).
+-r requirements-bootstrap.txt
+SQLAlchemy==2.0.41
+asyncmy==0.2.10
+alembic==1.16.5
+redis==5.3.1
+rq==2.6.0
+bcrypt==5.0.0
+PyJWT==2.13.0
+cryptography==50.0.0

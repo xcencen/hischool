@@ -1,0 +1,48 @@
+name: my-campus-test
+services:
+  test-mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: my_campus_test
+      MYSQL_USER: my_campus
+      MYSQL_PASSWORD: ${CAMPUS_DB_PASSWORD:?Run scripts/setup_local.py}
+      MYSQL_ROOT_PASSWORD: ${CAMPUS_DB_ROOT_PASSWORD:?Run scripts/setup_local.py}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00"]
+    volumes:
+      - type: bind
+        source: ${CAMPUS_DATA_ROOT:?Set F data directory}-tests/mysql
+        target: /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --user=\"$$MYSQL_USER\" --database=my_campus_test --execute='SELECT 1' --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+  test-redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - type: bind
+        source: ${CAMPUS_DATA_ROOT}-tests/redis
+        target: /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  tests:
+    build:
+      context: ./backend
+      target: test
+    environment:
+      APP_MODE: bootstrap
+      CAMPUS_INTEGRATION: "1"
+      CAMPUS_DATABASE_URL: mysql+asyncmy://my_campus:${CAMPUS_DB_PASSWORD}@test-mysql:3306/my_campus_test?charset=utf8mb4
+      CAMPUS_REDIS_URL: redis://test-redis:6379/15
+      CAMPUS_JWT_SECRET: ${CAMPUS_JWT_SECRET:?Set JWT secret}
+      CAMPUS_DEMO_ADMIN_PASSWORD: ${CAMPUS_DEMO_ADMIN_PASSWORD:?Set demo password}
+      CAMPUS_DEMO_TEACHER_PASSWORD: ${CAMPUS_DEMO_TEACHER_PASSWORD:?Set demo password}
+      CAMPUS_DEMO_STUDENT_PASSWORD: ${CAMPUS_DEMO_STUDENT_PASSWORD:?Set demo password}
+    depends_on:
+      test-mysql: {condition: service_healthy}
+      test-redis: {condition: service_healthy}

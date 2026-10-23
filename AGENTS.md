@@ -2,7 +2,17 @@
 
 本文记录当前仓库已确认的信息及用户明确指定的工作约定。文中路径相对于项目根目录；TODO 表示尚未确认或尚未配置的事项。
 
-## 当前有效入口：my-campus 第一步（2026-10-23）
+## 当前有效入口：my-campus 第二步（2026-10-24）
+
+- 第一步初始化保留。默认 `APP_MODE=bootstrap` 仍只启用独立健康应用，不导入数据库或旧配置；显式 `APP_MODE=campus` 启用新版异步 MySQL/Redis 客户端及 `/api/ready`。
+- 新版 `app/config.py` 只读取进程 `CAMPUS_*`，不会读取原 `backend/.env`。数据库只允许 `my_campus` 或 `my_campus_test`，旧实例和旧库不访问。
+- `app/database.py`、用户模型已迁移为异步基础；其他旧业务暂未接入，不能直接挂载旧同步路由。初始化前源码可从 `4d60d0c` 恢复。
+- 依赖：`requirements-campus.txt` 为当前运行依赖（包含 bootstrap），`requirements-dev.txt` 为测试依赖。所有安装和缓存继续在 F 盘。
+- 结构由 `backend/migrations/` 和 Alembic 显式管理，演示数据独立由 `python -m app.seed` 插入，不自动建表、不覆盖已有账号。
+- 编排、独立集成测试、配置生成和回滚见 `docs/infrastructure.md`。先完成第二步真实 MySQL/Redis/Compose 验收，再进入第三步；无 Docker 时不能以单元测试代替集成验收。
+- 本地检查：在 `backend` 用 F 盘 Python 3.11 执行 `python -m pytest -q tests`（无服务时集成测试显式跳过）；前端继续 `npm run type-check` 和 `npm run build`。
+
+## 第一步记录（2026-10-23）
 
 - 本阶段仅启用 `frontend/src/main.ts` 和 `frontend/src/bootstrap/` 初始化页面，以及 `backend/app/main.py`、`backend/app/bootstrap/` 健康应用；旧业务源码保留但不接入。
 - 后端使用 Python **3.11**、FastAPI 0.115，安装 `requirements-bootstrap.txt`（运行）或 `requirements-dev.txt`（含测试）；不使用旧 `requirements.txt` 和旧启动批处理脚本。
@@ -12,7 +22,7 @@
 - 按用户要求，开发运行环境、依赖与缓存放在 `F:\my-campus-dev`，源码留在 E 盘。现有 `backend/.venv` 和真实 `.env` 不覆盖。
 - 具体安装、启动、配置与回滚步骤见 `docs/initialization.md`。未来模型配置为百炼北京 `deepseek-v4.1-flash`，本阶段不接入模型。
 
-以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与上述当前入口不一致时，以本节为准。下文的密钥保护、提交和推送要求继续有效。
+以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与当前第二步入口不一致时，以上述第二步约定为准。下文的密钥保护、提交和推送要求继续有效。
 
 ## 项目概况
 

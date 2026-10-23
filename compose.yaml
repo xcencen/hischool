@@ -1,0 +1,83 @@
+name: my-campus
+
+x-backend: &backend
+  image: my-campus-backend:local
+  build:
+    context: ./backend
+    target: runtime
+  environment: &campus-env
+    APP_MODE: campus
+    CAMPUS_DATABASE_URL: ${CAMPUS_DATABASE_URL:?Run scripts/setup_local.py first}
+    CAMPUS_REDIS_URL: redis://redis:6379/0
+    CAMPUS_JWT_SECRET: ${CAMPUS_JWT_SECRET:?Set local JWT secret}
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: my_campus
+      MYSQL_USER: my_campus
+      MYSQL_PASSWORD: ${CAMPUS_DB_PASSWORD:?Set local database password}
+      MYSQL_ROOT_PASSWORD: ${CAMPUS_DB_ROOT_PASSWORD:?Set local root password}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00"]
+    ports: ["127.0.0.1:13306:3306"]
+    volumes:
+      - type: bind
+        source: ${CAMPUS_DATA_ROOT:?Set data directory on F drive}/mysql
+        target: /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --user=\"$$MYSQL_USER\" --database=my_campus --execute='SELECT 1' --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:16379:6379"]
+    volumes:
+      - type: bind
+        source: ${CAMPUS_DATA_ROOT}/redis
+        target: /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  init:
+    <<: *backend
+    environment:
+      <<: *campus-env
+      CAMPUS_DEMO_ADMIN_PASSWORD: ${CAMPUS_DEMO_ADMIN_PASSWORD:?Set demo password}
+      CAMPUS_DEMO_TEACHER_PASSWORD: ${CAMPUS_DEMO_TEACHER_PASSWORD:?Set demo password}
+      CAMPUS_DEMO_STUDENT_PASSWORD: ${CAMPUS_DEMO_STUDENT_PASSWORD:?Set demo password}
+    command: ["python", "-m", "app.initialize"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    restart: "no"
+  api:
+    <<: *backend
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=6).read()"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+    restart: unless-stopped
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:5173:80"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
