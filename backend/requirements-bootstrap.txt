@@ -1,0 +1,5 @@
+# Minimal dependencies for the initialization step (Python 3.11).
+# Legacy business dependencies remain in requirements.txt and are not needed yet.
+fastapi==0.115.13
+uvicorn==0.35.0
+pydantic==2.11.7

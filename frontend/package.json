@@ -1,11 +1,12 @@
 {
-  "name": "frontend",
-  "version": "0.0.0",
+  "name": "my-campus",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "type-check": "vue-tsc --noEmit -p tsconfig.json",
     "preview": "vite preview",
     "format": "prettier --write --experimental-cli src/"
   },
@@ -22,6 +23,8 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
     "prettier": "3.9.5",
+    "typescript": "~5.9.3",
+    "vue-tsc": "^3.1.1",
     "vite": "^8.1.5"
   },
   "engines": {

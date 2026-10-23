@@ -1,57 +1,30 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
-from app.config import UPLOAD_DIR
-from app.models import *  # noqa: F401
-from app.database import Base, engine
-from app.api import api
-from starlette.middleware.cors import CORSMiddleware
-from app.common.exceptions import (
-    BusinessException,
-    business_exception_handler,
-    http_excpetion_hadler,
-    validation_excpetion_hadler,
-    global_excpetion_hadler,
-)
+"""my-campus bootstrap application, independent of legacy business services."""
 
-Base.metadata.create_all(bind=engine)  # 自动帮我们创数据库表
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.bootstrap.config import BootstrapSettings, load_settings
+from app.bootstrap.health import HealthResponse, create_health_router, health_response
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 启动项目开启异步的扫描任务
-    yield
+def create_app(settings: BootstrapSettings | None = None) -> FastAPI:
+    """Create a minimal app without database, filesystem, or network setup."""
+    settings = settings or load_settings()
+    application = FastAPI(title=settings.app_name, version=settings.app_version)
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_origins),
+        allow_credentials=False,
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
+    application.include_router(create_health_router(settings))
+
+    @application.get("/", response_model=HealthResponse, tags=["health"])
+    def root() -> HealthResponse:
+        return health_response(settings)
+
+    return application
 
 
-app = FastAPI(lifespan=lifespan)
-
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,  # 允许的前端源，不要直接写 ["*"]
-    allow_credentials=True,  # ✅ 关键：允许前端携带 Authorization token
-    allow_methods=["*"],  # 允许所有请求方法 GET POST PUT DELETE OPTIONS
-    allow_headers=["*"],  # 允许所有请求头（包含Authorization）
-)
-
-app.include_router(api)
-
-# 注册异常处理器
-app.add_exception_handler(BusinessException, business_exception_handler)
-app.add_exception_handler(HTTPException, http_excpetion_hadler)
-app.add_exception_handler(RequestValidationError, validation_excpetion_hadler)
-# 全局的异常兜底，必须放在最后注册！！
-app.add_exception_handler(Exception, global_excpetion_hadler)
-
-# 挂载静态的文件目录  http://127.0.0.1:8000/uploads/xxx.jpg
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
-
-@app.get("/")
-def root():
-    return {"message": "FastAPI工程正在运行中"}
+app = create_app()

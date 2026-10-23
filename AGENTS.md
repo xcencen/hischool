@@ -2,6 +2,18 @@
 
 本文记录当前仓库已确认的信息及用户明确指定的工作约定。文中路径相对于项目根目录；TODO 表示尚未确认或尚未配置的事项。
 
+## 当前有效入口：my-campus 第一步（2026-10-23）
+
+- 本阶段仅启用 `frontend/src/main.ts` 和 `frontend/src/bootstrap/` 初始化页面，以及 `backend/app/main.py`、`backend/app/bootstrap/` 健康应用；旧业务源码保留但不接入。
+- 后端使用 Python **3.11**、FastAPI 0.115，安装 `requirements-bootstrap.txt`（运行）或 `requirements-dev.txt`（含测试）；不使用旧 `requirements.txt` 和旧启动批处理脚本。
+- 新后端导入不加载旧 `.env`、不导入数据库、不自动建表、不创建上传目录。唯一业务接口是 `GET /api/health`；本阶段不运行 SQL 或迁移。
+- 前端增量检查：`npm run type-check`；生产构建：`npm run build`。strict 只覆盖新增 TypeScript/Vue 模块。
+- 后端检查：在 `backend` 用 Python 3.11 执行 `python -m pytest -q tests/test_bootstrap.py`。
+- 按用户要求，开发运行环境、依赖与缓存放在 `F:\my-campus-dev`，源码留在 E 盘。现有 `backend/.venv` 和真实 `.env` 不覆盖。
+- 具体安装、启动、配置与回滚步骤见 `docs/initialization.md`。未来模型配置为百炼北京 `deepseek-v4.1-flash`，本阶段不接入模型。
+
+以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与上述当前入口不一致时，以本节为准。下文的密钥保护、提交和推送要求继续有效。
+
 ## 项目概况
 
 项目包含前端、FastAPI 后端和独立的 MCP 服务。
