@@ -20,6 +20,8 @@ from app.models.enrollment import CourseEnrollment
 from app.models.schedule import Schedule
 from app.models.notice import Notice, NoticeCategory
 from app.models.activity import Activity, ActivityRegistration
+from app.models.knowledge import (KnowledgeDocument, KnowledgeVersion, KnowledgePage,
+    KnowledgeChunk, KnowledgeIndex, KnowledgeState)
 async def snapshot():
     db = Database(load_settings().database_url)
     try:
@@ -37,7 +39,9 @@ async def snapshot():
             assert len(courses) >= 2 and len(lessons) >= 3, 'Demo timetable missing'
             data = {'users': [list(row) for row in rows], 'courses': [list(row) for row in courses],
                     'enrollments': [list(row) for row in enrollments], 'lessons': [list(row) for row in lessons]}
-            for model in (NoticeCategory, Notice, Activity, ActivityRegistration):
+            for model in (NoticeCategory, Notice, Activity, ActivityRegistration,
+                          KnowledgeDocument, KnowledgeVersion, KnowledgePage, KnowledgeChunk,
+                          KnowledgeIndex, KnowledgeState):
                 records = (await session.execute(select(*model.__table__.columns).order_by(model.id))).all()
                 data[model.__tablename__] = [list(row) for row in records]
             print(hashlib.sha256(json.dumps(data,

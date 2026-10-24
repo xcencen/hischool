@@ -140,9 +140,12 @@ def test_enabled_metadata_preserves_user_microsecond_timestamps() -> None:
     from app.models.schedule import Schedule  # noqa: F401
     from app.models.notice import Notice, NoticeCategory  # noqa: F401
     from app.models.activity import Activity, ActivityRegistration  # noqa: F401
+    from app.models.knowledge import KnowledgeDocument, KnowledgeVersion, KnowledgePage, KnowledgeChunk, KnowledgeIndex, KnowledgeState  # noqa: F401
 
     assert set(Base.metadata.tables) == {"users", "courses", "course_enrollments", "schedules",
-                                         "notice_categories", "notices", "activities", "activity_registrations"}
+                                         "notice_categories", "notices", "activities", "activity_registrations",
+                                         "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks",
+                                         "knowledge_indexes", "knowledge_state"}
     dialect = mysql.dialect()
     for field in ("create_time", "update_time"):
         timestamp = User.__table__.c[field].type.dialect_impl(dialect)
@@ -248,7 +251,8 @@ def test_offline_migration_needs_no_credentials_or_service() -> None:
     sql = result.stdout
     assert set(re.findall(r"CREATE TABLE (\w+)", sql)) == {
         "alembic_version", "users", "courses", "course_enrollments", "schedules",
-        "notice_categories", "notices", "activities", "activity_registrations"
+        "notice_categories", "notices", "activities", "activity_registrations",
+        "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks", "knowledge_indexes", "knowledge_state"
     }
     assert "DATETIME(6)" in sql
     assert "utf8mb4" in sql

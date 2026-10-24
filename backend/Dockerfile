@@ -1,8 +1,8 @@
 FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
-COPY requirements-bootstrap.txt requirements-campus.txt ./
-RUN pip install --no-cache-dir -r requirements-campus.txt
+COPY requirements-bootstrap.txt requirements-campus.txt requirements-knowledge.txt ./
+RUN pip install --no-cache-dir -r requirements-campus.txt -r requirements-knowledge.txt
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations

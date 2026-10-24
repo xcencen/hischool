@@ -16,6 +16,7 @@ from app.models.enrollment import CourseEnrollment  # noqa: F401
 from app.models.schedule import Schedule  # noqa: F401
 from app.models.notice import Notice, NoticeCategory  # noqa: F401
 from app.models.activity import Activity, ActivityRegistration  # noqa: F401
+from app.models.knowledge import KnowledgeDocument, KnowledgeVersion, KnowledgePage, KnowledgeChunk, KnowledgeIndex, KnowledgeState  # noqa: F401
 
 
 config = context.config

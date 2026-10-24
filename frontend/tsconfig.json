@@ -24,7 +24,7 @@
     "src/views/Course.vue", "src/views/ScheduleManage.vue",
     "src/views/NoticeList.vue", "src/views/NoticeDetail.vue", "src/views/ActivityList.vue",
     "src/views/ActivityDetail.vue", "src/views/Registrations.vue", "src/views/ContentManage.vue",
-    "src/views/NoticeCategories.vue"
+    "src/views/NoticeCategories.vue", "src/views/KnowledgeSearch.vue"
   ],
   "exclude": ["node_modules", "dist"]
 }

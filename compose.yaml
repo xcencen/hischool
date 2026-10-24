@@ -5,11 +5,23 @@ x-backend: &backend
   build:
     context: ./backend
     target: runtime
+  env_file:
+    - path: ${CAMPUS_KNOWLEDGE_ENV_FILE:-F:/my-campus-dev/config/knowledge.env}
+      required: false
+  volumes:
+    - type: bind
+      source: ${CAMPUS_DATA_ROOT:?Set data directory on F drive}/knowledge
+      target: /data/knowledge
+    - type: bind
+      source: ${CAMPUS_DATA_ROOT}/faiss
+      target: /data/faiss
   environment: &campus-env
     APP_MODE: campus
     CAMPUS_DATABASE_URL: ${CAMPUS_DATABASE_URL:?Run scripts/setup_local.py first}
     CAMPUS_REDIS_URL: redis://redis:6379/0
     CAMPUS_JWT_SECRET: ${CAMPUS_JWT_SECRET:?Set local JWT secret}
+    CAMPUS_KB_SOURCE_DIR: /data/knowledge
+    CAMPUS_KB_INDEX_DIR: /data/faiss
 
 services:
   mysql:

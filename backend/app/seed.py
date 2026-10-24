@@ -71,6 +71,8 @@ async def main() -> None:
                 await ensure_demo_courses(session)
                 from app.demo_community import ensure_demo_community
                 await ensure_demo_community(session)
+                from app.services.knowledge_service import ensure_knowledge_state
+                await ensure_knowledge_state(session)
         print("Demo seed finished; existing accounts and course edits retained.")
     finally:
         await database.dispose()
