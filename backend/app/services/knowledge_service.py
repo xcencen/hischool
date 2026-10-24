@@ -1,6 +1,7 @@
 """Versioned ingestion and retrieval, independent of chat prompts or tools."""
 import asyncio
 import hashlib
+import logging
 from pathlib import Path
 import re
 from uuid import uuid4
@@ -16,6 +17,26 @@ from app.knowledge.documents import MAX_DOCUMENT_BYTES, parse_document
 from app.knowledge.embeddings import BailianEmbeddingClient, EmbeddingUnavailable
 from app.knowledge.settings import KnowledgeSettings
 from app.knowledge.vector_index import KnowledgeIndexError, search_index, write_index
+
+
+logger = logging.getLogger(__name__)
+EMBEDDING_FAILURE_MESSAGES = {
+    "authentication": "百炼文本嵌入服务鉴权失败，请检查本地密钥、地域和模型权限",
+    "rate_limited": "百炼文本嵌入服务请求过于频繁，请稍后重试",
+    "timeout": "百炼文本嵌入服务响应超时，请稍后重试",
+    "network": "暂时无法连接百炼文本嵌入服务，请稍后重试",
+    "invalid_response": "百炼文本嵌入服务返回结果无效，请稍后重试",
+    "invalid_request": "百炼文本嵌入服务配置或请求无效，请检查配置",
+    "upstream": "百炼文本嵌入服务暂不可用，请稍后重试",
+    "configuration": "请先配置百炼文本嵌入 Key 和北京地域地址",
+    "unavailable": "百炼文本嵌入服务暂不可用，请检查配置后重试",
+}
+
+
+def embedding_failure_message(error):
+    # Only controlled categories are public. Exception strings may contain
+    # provider bodies, credentials or knowledge text supplied by a test double.
+    return EMBEDDING_FAILURE_MESSAGES.get(getattr(error, "reason", None), EMBEDDING_FAILURE_MESSAGES["unavailable"])
 
 
 async def ensure_knowledge_state(session):
@@ -159,13 +180,17 @@ async def embed_version(database, settings, version_id, *, embedder=None, job_id
             current.status = "embedded"
             await db.commit()
         return await rebuild_index(database, settings, candidate_version_id=version_id, candidate_job_id=job_id)
-    except Exception:
+    except Exception as error:
         async with database.session_factory() as db:
             current = await db.scalar(select(KnowledgeVersion).where(KnowledgeVersion.id == version_id).with_for_update())
             if current is not None and (job_id is None or current.job_id == job_id):
                 current.status = "failed"
-                current.error = "嵌入或索引构建失败，原有效索引保留；请检查配置后重试"
+                current.error = (embedding_failure_message(error) + "；原有效索引保留" if isinstance(error, EmbeddingUnavailable)
+                                 else "嵌入或索引构建失败，原有效索引保留；请检查配置后重试")
                 await db.commit()
+        reason = getattr(error, "reason", "unavailable") if isinstance(error, EmbeddingUnavailable) else "unavailable"
+        reason = reason if reason in EMBEDDING_FAILURE_MESSAGES else "unavailable"
+        logger.warning("knowledge_ingestion_failed version_id=%s reason=%s", version_id, reason)
         raise
 
 
@@ -230,6 +255,7 @@ async def rebuild_index(database, settings, *, candidate_version_id=None, candid
             candidate.status, candidate.error = "indexed", None
         state.active_index_id = index.id
         await db.commit()
+        logger.info("knowledge_index_activated index_version=%s chunks=%s", index.version, artifact.count)
         return index.version
 
 
@@ -314,8 +340,10 @@ async def search(db, settings, query, top_k, *, embedder=None):
         raise BusinessException("百炼文本嵌入服务未配置", code=503)
     try:
         vectors = await (embedder or embedding_client(settings)).embed_texts([query])
-    except EmbeddingUnavailable:
-        raise BusinessException("百炼文本嵌入服务暂不可用，请检查配置后重试", code=503) from None
+    except EmbeddingUnavailable as error:
+        # An upstream API key failure is a service fault, not an expired campus
+        # login: keep HTTP 503 so the browser does not discard the user's JWT.
+        raise BusinessException(embedding_failure_message(error), code=503) from None
     await db.commit()
     index = await active_index(db)
     if index is None or index.model != settings.model or index.dimensions != settings.dimensions or (

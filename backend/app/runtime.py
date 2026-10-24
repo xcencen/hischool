@@ -14,6 +14,9 @@ from app.database import Database
 
 @asynccontextmanager
 async def campus_lifespan(application: FastAPI):
+    from app.knowledge.logging import configure_knowledge_logging
+
+    configure_knowledge_logging()
     settings = load_settings()
     database = Database(settings.database_url)
     redis = Redis.from_url(

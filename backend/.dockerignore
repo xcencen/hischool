@@ -1,5 +1,6 @@
 .env
 .env.*
+*.env
 .venv*
 uploads
 __pycache__

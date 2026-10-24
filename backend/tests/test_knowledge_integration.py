@@ -518,3 +518,65 @@ def test_missing_key_enqueue_creates_no_job_and_preserves_parsed_version(world):
         assert queue.get_job_ids() == before
     finally:
         connection.close()
+
+
+@pytest.mark.parametrize("reason,expected", [
+    ("authentication", "鉴权失败"), ("rate_limited", "过于频繁"),
+    ("timeout", "响应超时"), ("network", "无法连接"),
+    ("invalid_response", "结果无效"), ("invalid_request", "请求无效"),
+    ("upstream", "暂不可用"), ("not-a-public-category", "暂不可用"),
+])
+def test_provider_failure_is_safe_503_and_preserves_campus_login(
+        world, client, student_headers, monkeypatch, reason, expected):
+    from app.knowledge.embeddings import EmbeddingUnavailable
+    from app.services import knowledge_service
+
+    version = world.import_text("# 奖学金\nScholarship source remains indexed during a provider fault.")
+    world.activate(version)
+    private = "private-api-key-and-upstream-response-body"
+
+    class Failure:
+        async def embed_texts(self, texts):
+            raise EmbeddingUnavailable(private, reason=reason)
+
+    monkeypatch.setattr(knowledge_service, "embedding_client", lambda settings: Failure())
+    response = client.post("/api/knowledge/search", headers=student_headers,
+                           json={"query": "scholarship"})
+    assert response.status_code == 503 and expected in response.json()["message"]
+    assert private not in response.text
+    # A provider 401 is not a campus 401. The same campus credential remains valid.
+    assert client.get("/api/user/me", headers=student_headers).status_code == 200
+    assert client.post("/api/knowledge/search", json={"query": "scholarship"}).status_code == 401
+
+
+def test_ingestion_auth_failure_persists_safe_reason_and_keeps_working_index(world, caplog):
+    from app.knowledge.embeddings import EmbeddingUnavailable
+    from app.models.knowledge import KnowledgeVersion
+    from app.services import knowledge_service
+
+    original = world.import_text("# 奖学金\nScholarship original available version.")
+    previous_index = world.activate(original)
+    newer = world.import_text("# 奖学金\nScholarship updated version.", code=world.codes[0])
+    private = "private-key-url-input-and-provider-body"
+
+    class AuthFailure:
+        async def embed_texts(self, texts):
+            raise EmbeddingUnavailable(private, reason="authentication")
+
+    # Production module loggers have their own handler; capture this test's
+    # warning directly without changing their configured propagation policy.
+    knowledge_service.logger.addHandler(caplog.handler)
+    try:
+        with pytest.raises(EmbeddingUnavailable):
+            world.activate(newer, embedder=AuthFailure())
+    finally:
+        knowledge_service.logger.removeHandler(caplog.handler)
+    assert world.search("scholarship")["index_version"] == previous_index
+
+    async def check(database):
+        async with database.session_factory() as db:
+            row = await db.get(KnowledgeVersion, newer.id)
+            assert row.status == "failed" and "鉴权失败" in row.error and "索引保留" in row.error
+            assert private not in row.error
+    world.run(check)
+    assert "reason=authentication" in caplog.text and private not in caplog.text

@@ -40,8 +40,13 @@ export async function request<T>(config: AxiosRequestConfig, authenticated = tru
         storeToken('')
         window.dispatchEvent(new Event('campus:session-expired'))
       }
+      const fallback = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT'
+        ? '请求超时，请稍后重试。'
+        : status === 429
+          ? '请求过于频繁，请稍后重试。'
+          : status ? '请求失败，请稍后重试。' : '无法连接服务，请检查网络后重试。'
       throw new ApiError(
-        error.response?.data?.message || (status ? '请求失败，请稍后重试。' : '无法连接服务，请检查网络后重试。'),
+        error.response?.data?.message || fallback,
         status
       )
     }

@@ -2,7 +2,7 @@
 
 本步在前五步基础上增加“本地资料 → 按章节切片 → 百炼文本嵌入 → FAISS 检索 → 原文与页码核对”的最小闭环。继续使用 Vue 3.5、增量 TypeScript 5.9、Element Plus、Python 3.11、FastAPI、异步 SQLAlchemy、MySQL、Redis/RQ 和 Docker Compose。
 
-当前用户选择稍后配置百炼 Key，因此先交付代码、资料解析和离线验证。**真实百炼嵌入调用及真实语义检索尚未验收**，不能以替身向量的测试结果代替。缺少 Key 或服务未就绪时明确显示待配置或待建索引，不切换模型、不生成假向量。
+本步先完成代码、资料解析和离线验证，随后用户在 F 盘配置 Key 并授权真实验收。真实百炼短文本连通、手册入库及语义检索已通过；自动化仍使用替身覆盖故障边界。缺少 Key 或服务未就绪时明确显示待配置或待建索引，不切换模型、不生成假向量。
 
 ## 范围与文件关系
 
@@ -53,7 +53,7 @@ API、worker 和初始化服务共享以下绑定目录，实际宿主根目录�
 | `F:/my-campus-dev/data/knowledge` | `/data/knowledge` | 按内容 SHA256 命名保存的原始资料 |
 | `F:/my-campus-dev/data/faiss` | `/data/faiss` | 版本化 FAISS 索引及临时构建文件 |
 
-Compose 显式设置容器内 `CAMPUS_KB_SOURCE_DIR=/data/knowledge`、`CAMPUS_KB_INDEX_DIR=/data/faiss`，不要把 Windows 路径当成容器路径。直接在 Windows 运行 CLI 时，默认使用 F 盘对应目录，同时仍需显式提供校园数据库、Redis、JWT 等进程配置；CLI 不暗中读取旧 `backend/.env`。
+Compose 显式设置容器内 `CAMPUS_KB_SOURCE_DIR=/data/knowledge`、`CAMPUS_KB_INDEX_DIR=/data/faiss`，不要把 Windows 路径当成容器路径。直接在 Windows 运行 CLI 时，默认使用 F 盘对应目录；除 `probe` 外，资料和索引命令仍需显式提供校园数据库、Redis、JWT 等进程配置。CLI 不暗中读取旧 `backend/.env`。
 
 配置文件变更后应重新创建服务以重新注入环境；单独 `docker compose restart` 不会更新已创建容器的环境变量：
 
@@ -63,9 +63,28 @@ docker compose --env-file .env.compose up -d --force-recreate api worker fronten
 
 新建前端容器也会重新解析 API 代理目标。Docker 不在 PATH 时，将命令中的 `docker` 替换为 `F:/my-campus-dev/docker/app/resources/bin/docker.exe`。
 
+## 密钥加载、自检与错误处理
+
+密钥只保存在 F 盘本地文件，经 Compose 服务级 `env_file` 注入进程；应用不读取原 `backend/.env`，不硬编码密钥。根 `.gitignore` 的 `*.env` 规则覆盖 `knowledge.env`，`!*.env.example` 保留空模板；后端 `.dockerignore` 同时排除 `*.env`，防止本地副本进入构建上下文。忽略规则不能清除已经提交的密钥历史；泄露时先撤销并更换 Key。
+
+在项目根目录执行以下自检。`probe` 不连接数据库、Redis 或模型，仅输出是否加载及固定模型维度；只有显式 `--live` 才发送一条短文本，不输出密钥、服务地址、向量或响应正文：
+
+```powershell
+docker compose --env-file .env.compose exec -T api python -m app.knowledge.cli probe
+docker compose --env-file .env.compose exec -T api python -m app.knowledge.cli probe --live
+```
+
+`configured=true` 只表示设置齐全；真实调用成功后才会输出 `connectivity=true`。Key 与地域、工作空间及模型权限必须匹配。本次发现本地基址不符合北京 API 域名要求，使用官方北京兼容基址验证成功后，仅修正本地基址，密钥及其他字段保持原样。
+
+嵌入请求继续统一封装在 `BailianEmbeddingClient`，每批最多 10 条，单次网络超时 30 秒，整次 `embed_texts` 包括重试等待最多 45 秒。HTTP 401/403 不重试；429 和 5xx 最多请求三次，默认退避 0.25/0.5 秒，合法 `Retry-After` 最多等待 5 秒；超时和网络错误直接返回受控失败，取消信号正常传播。超时类型参见 [HTTPX 异常说明](https://www.python-httpx.org/exceptions/)，服务端鉴权及限流排查参见 [百炼错误码](https://help.aliyun.com/zh/model-studio/error-code)。
+
+错误分类为 `authentication/rate_limited/timeout/network/invalid_response/invalid_request/upstream/configuration/unavailable`。服务层使用固定中文提示，检索仍返回 HTTP 503；上游 401 不能冒充校园登录失效的 401，避免前端误清除校园 JWT。入库失败保存受控分类对应的提示，保留已写向量及上一有效索引，修复配置后用原版本 ID 重试。前端保留服务端提示，额外识别请求超时及没有 JSON 错误体的 429。
+
+应用日志只记录本地关联 ID、HTTP 状态、尝试次数、批量条数、耗时及受控原因，重试和失败为 WARNING，成功为 INFO。不记录 Key、Authorization、URL、输入文本、响应正文、向量或异常对象。API 生命周期、worker 和 CLI 显式为 `app.knowledge.embeddings` 与 `app.services.knowledge_service` 配置 INFO 日志，重复初始化不重复添加处理器；不改变其他模块或全局日志级别，不开启上游 HTTP 调试。单独导入日志模块不会配置日志。
+
 ## 资料导入与入库 CLI
 
-命令入口是 `python -m app.knowledge.cli`，需要使用已迁移并初始化的 `APP_MODE=campus` 环境。文件只复制到本地存储，不修改用户原件。以下示例先把已提供的手册复制到容器临时目录，避免在文档中硬编码个人微信文件目录：
+命令入口是 `python -m app.knowledge.cli`；除 `probe` 外，资料和索引命令需要使用已迁移并初始化的校园环境，推荐沿用 `APP_MODE=campus` 的 Compose 配置。文件只复制到本地存储，不修改用户原件。以下示例先把已提供的手册复制到容器临时目录，避免在文档中硬编码个人微信文件目录：
 
 ```powershell
 $handbookSource = Read-Host '输入学生手册 PDF 的本地绝对路径'
@@ -85,8 +104,9 @@ docker compose --env-file .env.compose exec -T api python -m app.knowledge.cli i
 | `set-active DOCUMENT_ID 0` | 停用资料，检索与原件访问立即按数据库状态过滤 |
 | `set-active DOCUMENT_ID 1` | 重新启用资料；不会补齐缺失向量或自动重建文件，应随后执行 `rebuild` |
 | `inspect` | 查看索引状态及各资料版本的状态、任务 ID、错误、页数与片段数 |
+| `probe [--live]` | 无数据库和 Redis 依赖的配置检查；可选一条真实短文本请求 |
 
-本次已经解析的版本无需重新导入。用户稍后配置 Key、重新创建服务后，使用 **本次实际 `version_id`** 排队；不要假定它等于资料 ID、版本号或某个固定数字：
+已解析的版本无需重新导入。初次入库或需要修复失败任务时，配置 Key 并重新创建服务后，使用 **实际 `version_id`** 排队；不要假定它等于资料 ID、版本号或某个固定数字。本次版本已完成入库，日常查询无需再次排队：
 
 ```powershell
 docker compose --env-file .env.compose exec -T api python -m app.knowledge.cli inspect
@@ -137,14 +157,16 @@ docker compose --env-file .env.compose exec -T api python -m app.knowledge.cli r
 
 自动化中百炼网络由替身替代，用于验证解析/页码、向量格式、真实 FAISS 读写检索、索引完整性、版本切换、停用过滤和错误恢复；真实 MySQL/Redis 验收使用独立 `my_campus_test`。实际通过数量、正式迁移和本次导入版本记录在 [实施进度](progress.md) 补充；未运行的真实百炼语义检索不能标记通过。
 
-本次隔离快照回归为 **305 项通过、0 跳过**，包括原 161 项与新增 144 项。正式迁移已应用，`alembic check` 无差异；手册两次导入均返回文档 ID 1、版本 ID 1、第 1 版、268 页及 1289 片段。该版本停留在 `parsed`，生产向量和索引均为零。原件 Bearer 下载哈希与用户原件一致，无凭证请求返回 401；真实界面显示待配置并禁止检索。浏览器内独立替身仅验证结果、页码及纯文本渲染，不代表真实召回成功。
+本轮真实接入增强快照共 **375 项通过、0 跳过**，新增鉴权/限流/超时/取消及脱敏 43 项、CLI 11 项、日志配置 7 项、知识集成 9 项。前端增量 TypeScript、本地及容器构建通过；真实百炼及页面验收独立进行，不计入这 375 项替身自动化结果。
+
+首次离线快照回归为 **305 项通过、0 跳过**，包括原 161 项与新增 144 项。正式迁移已应用，`alembic check` 无差异；手册两次导入均返回文档 ID 1、版本 ID 1、第 1 版、268 页及 1289 片段。当时版本停留在 `parsed`，生产向量和索引均为零，页面明确显示待配置。后续真实验收已完成：版本转为 `indexed`，1289 条真实向量存入 MySQL，FAISS 索引切换生效。申诉、国家助学金、考试作弊三个真实问题各召回 5 条原文；共 15 条引用的章节、页序、印刷页码、文本哈希及页内 offset 与持久记录一致。原件 Bearer 下载哈希与用户原件一致，无凭证请求返回 401。
 
 `scripts/smoke_compose.py --exercise-restarts` 已验证依赖故障与恢复、实际 worker 及重启后原业务和六张知识表的数据指纹一致；重启后再次核对私有原件哈希及 PDF 页码映射通过。页面和 390px 移动端冒烟通过，无未捕获浏览器错误。
 
-工作目录仍有用户要求单独保留的并行 AI 配置、模型测试等改动。本步验收使用 `b8d0e4a` 基线加本步文件的 `.workbuddy/step6-verification` 快照，保留原 README 未提交内容、旧配置、知识原件和其他 AI 文件。
+工作目录仍有用户要求单独保留的并行 AI 配置、模型测试等改动。首次离线验收使用 `b8d0e4a` 加本步文件的 `.workbuddy/step6-verification` 快照；真实服务及错误处理增强验收使用 `965cbe5` 加本轮文件的 `.workbuddy/step6-live-verification` 快照。保留原 README 未提交内容、旧配置、知识原件和其他 AI 文件。
 
 迁移前数据库备份及其恢复验证保存在 F 盘。首次隔离 MySQL 验收发现单例 `id=1` 的 CHECK 不能引用 AUTO_INCREMENT，因此将 `KnowledgeState.id` 设计为非自增，并修正当时尚未成功应用的 `0005_knowledge`。该次清理仅限已确认空的测试库新表；问题出现时主库尚未执行，历史迁移和原业务表未回退。后续实际迁移结果以实施进度记录为准。
 
 普通回滚优先反向提交代码，保留 MySQL、知识原件及索引卷；不要自动执行删表降级或清库。MySQL DDL 不保证整批回滚，迁移失败应核对实际表结构和 Alembic 版本，再采用新增修复迁移或经过验证的备份恢复。索引产物可由 MySQL 保存的向量重建。原始 PDF、真实 Key、上传原件、索引文件和运行缓存均不得提交 Git。
 
-当前剩余验收是：用户在 F 盘补齐真实北京地域嵌入配置，重建服务环境，排队本次版本，观察其进入 `indexed`，再用学生手册真实问题核对语义召回、页码与原文。完成这些检查后才衔接生成式问答、MCP 与 LangGraph；这些后续能力不属于本步已验收范围。
+当前知识检索已就绪，可在 `/app/knowledge` 查询。真实页面验证检索、五条引用、原文 Blob 页码打开及 390px 移动端；浏览器内独立失败替身另验证服务鉴权错误不清除校园登录、没有 JSON 错误体的 429 显示明确提示，均不写入生产向量。生成式回答、MCP 与 LangGraph 留给第七步，不属于本步已验收能力。
