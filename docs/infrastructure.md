@@ -139,6 +139,10 @@ docker compose --env-file .env.compose -f compose.test.yaml down
 
 记录测试命令、实际 Python 版本、通过/跳过数量和未执行原因。当前步骤只有真实 Compose 验收完成后才进入下一步；没有 Docker 的情况下保留“等待环境验收”，不以离线检查代替。
 
+2026-10-24 已完成实际验收：独立 Compose 测试环境 48 项通过、0 跳过；前端容器类型检查和构建通过；主环境上述冒烟命令通过，实际 worker、代理、依赖停止恢复和重启数据保留均已验证。MySQL 为 8.4、Redis 为 7.4、后端为 Python 3.11。测试中的角色约束错误严格检查 MySQL 3819 和约束名，兼容 asyncmy 的异常分类。
+
+若镜像构建遇到 Docker Hub 认证连接超时，可先对同一官方镜像执行 `docker pull python:3.11-slim`、`docker pull node:24-alpine`、`docker pull nginx:1.28-alpine`，成功后重试原构建；不需要更换技术版本或重建数据目录。
+
 ## 停止、备份与回滚
 
 正常停止保留数据：

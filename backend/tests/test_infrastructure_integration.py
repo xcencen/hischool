@@ -82,7 +82,7 @@ def test_real_mysql_seed_repeat_and_admin_changes():
 def test_real_mysql_datetime_microseconds_and_role_constraint():
     from datetime import datetime
     from sqlalchemy import delete, select
-    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.exc import DBAPIError
     from app.config import load_settings
     from app.database import Database
     from app.models.user import User
@@ -92,19 +92,26 @@ def test_real_mysql_datetime_microseconds_and_role_constraint():
         name = "test_" + uuid4().hex[:24]
         try:
             async with database.session_factory() as session:
-                user = User(username=name, password="integration-only", name="测试", role="student", status=1,
-                            create_time=datetime(2026, 1, 1, 0, 0, 0, 123456))
-                session.add(user)
-                await session.commit()
-                await session.refresh(user)
-                assert user.create_time.microsecond == 123456
-                user.role = "unexpected"
-                with pytest.raises(IntegrityError):
+                try:
+                    user = User(username=name, password="integration-only", name="测试", role="student", status=1,
+                                create_time=datetime(2026, 1, 1, 0, 0, 0, 123456))
+                    session.add(user)
                     await session.commit()
-                await session.rollback()
-                assert await session.scalar(select(User.role).where(User.username == name)) == "student"
-                await session.execute(delete(User).where(User.username == name))
-                await session.commit()
+                    await session.refresh(user)
+                    assert user.create_time.microsecond == 123456
+                    user.role = "unexpected"
+                    # asyncmy reports MySQL CHECK failures as OperationalError.
+                    # Check the actual DB error instead of assuming a subclass.
+                    with pytest.raises(DBAPIError) as violation:
+                        await session.commit()
+                    assert violation.value.orig.args[0] == 3819
+                    assert "ck_users_role" in str(violation.value.orig)
+                    await session.rollback()
+                    assert await session.scalar(select(User.role).where(User.username == name)) == "student"
+                finally:
+                    await session.rollback()
+                    await session.execute(delete(User).where(User.username == name))
+                    await session.commit()
         finally:
             await database.dispose()
 
