@@ -1,43 +1,43 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import InvalidTokenError
+from redis.exceptions import RedisError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
 from app.database import get_db
 from app.models.user import User
 from app.utils.jwt import decode_access_token
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+bearer = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
-    """JWT token 鉴权验证合法性"""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise BusinessException("请先登录", code=401)
     try:
-        payload = decode_access_token(token)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="登录已失效，请重新登录"
-        )
-    # 获取到用户ID
-    user_id = payload.get("user_id")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的登录凭证"
-        )
-    # 从数据库根据用户ID查询用户信息
-    user = db.query(User).filter(User.id == user_id, User.status == 1).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="登录已失效或用户已被禁用",
-        )
+        payload = decode_access_token(credentials.credentials, request.app.state.settings)
+    except (InvalidTokenError, ValueError, TypeError):
+        raise BusinessException("登录已失效，请重新登录", code=401) from None
+    try:
+        revoked = await request.app.state.redis.exists(f"campus:revoked:{payload['jti']}")
+    except RedisError:
+        raise BusinessException("认证服务暂不可用，请稍后重试", code=503) from None
+    if revoked:
+        raise BusinessException("登录已失效，请重新登录", code=401)
+    user = await db.scalar(select(User).where(User.id == int(payload["sub"])))
+    if user is None or user.status != 1 or user.auth_version != payload["auth_version"]:
+        raise BusinessException("登录已失效，请重新登录", code=401)
+    request.state.token_payload = payload
     return user
 
 
-def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    """判断JWT token内角色是否为admin"""
+async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
-        raise BusinessException(message="无权限访问", code=403)
+        raise BusinessException("无权限访问", code=403)
     return current_user

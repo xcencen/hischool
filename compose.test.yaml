@@ -39,7 +39,8 @@ services:
       CAMPUS_INTEGRATION: "1"
       CAMPUS_DATABASE_URL: mysql+asyncmy://my_campus:${CAMPUS_DB_PASSWORD}@test-mysql:3306/my_campus_test?charset=utf8mb4
       CAMPUS_REDIS_URL: redis://test-redis:6379/15
-      CAMPUS_JWT_SECRET: ${CAMPUS_JWT_SECRET:?Set JWT secret}
+      # Isolated test signing key; test tokens must never authenticate to main.
+      CAMPUS_JWT_SECRET: my-campus-isolated-integration-tests-only-signing-key-2026
       CAMPUS_DEMO_ADMIN_PASSWORD: ${CAMPUS_DEMO_ADMIN_PASSWORD:?Set demo password}
       CAMPUS_DEMO_TEACHER_PASSWORD: ${CAMPUS_DEMO_TEACHER_PASSWORD:?Set demo password}
       CAMPUS_DEMO_STUDENT_PASSWORD: ${CAMPUS_DEMO_STUDENT_PASSWORD:?Set demo password}

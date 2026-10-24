@@ -1,164 +1,46 @@
-<template>
-  <div style="width: 40%">
-    <el-card>
-      <template #header>
-        <div style="font-size: 16px; font-weight: bold">
-          <span>个人信息</span>
-        </div>
-      </template>
-      <el-form
-        ref="formRef"
-        :rules="rules"
-        :model="form"
-        label-width="80px"
-        style="width: 100%; padding-right: 50px"
-        v-loading="loading"
-      >
-        <el-form-item label="头像">
-          <el-upload
-            class="avatar-uploader"
-            :http-request="handleFileUpload"
-            :show-file-list="false"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            :before-upload="beforeAvatarUpload"
-          >
-            <img v-if="form.avatar" :src="form.avatar" class="avatar" />
-            <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-          </el-upload>
-        </el-form-item>
-        <el-form-item label="账号">
-          <el-input disabled v-model="form.username" placeholer="请输入账号" />
-        </el-form-item>
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholer="请输入名称" />
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-input disabled v-model="roleLabel" />
-        </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholer="请输入邮箱" />
-        </el-form-item>
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" placeholer="请输入手机号" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">保存修改</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-  </div>
-</template>
-
-<script setup>
-import { getUserInfo, updateUserInfo } from '@/api/user'
-import { uploadFileApi } from '@/api/file'
-import { ref, reactive, onMounted, computed } from 'vue'
-import { useUser } from '@/utils/user'
+<script setup lang="ts">
+import { reactive, ref, onMounted } from 'vue'
+import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { updateProfileApi } from '../api/campus'
+import { user, saveUser, roleLabel } from '../utils/campus-auth'
+import { errorMessage } from '../utils/campus-request'
 
-const { updateUser } = useUser()
-
-const loading = ref(false)
-const submitting = ref(false)
-const formRef = ref()
-const form = reactive({
-  username: '',
-  name: '',
-  role: '',
-  email: '',
-  phone: '',
-  avatar: ''
-})
-
-const rules = {
-  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  email: [{ type: 'email', message: '邮箱格式错误', trigger: 'blur' }],
-  phone: [{ pattern: /^1[3-9]\d{9}$/, message: '手机号格式错误', trigger: 'blur' }]
+const formRef = ref<FormInstance>()
+const form = reactive({ name: '', email: '', phone: '' })
+const saving = ref(false)
+const error = ref('')
+const rules: FormRules = {
+  name: [{ required: true, whitespace: true, message: '请输入姓名', trigger: 'blur' }, { max: 50, message: '姓名最多50个字符' }],
+  email: [{ max: 50, message: '邮箱最多50个字符' }, { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }],
+  phone: [{ max: 50, message: '联系电话最多50个字符' }]
 }
-
-const roleLabel = computed(() => {
-  return form.role === 'admin' ? '管理员' : form.role === 'student' ? '学生' : '未知角色'
-})
-
-const beforeAvatarUpload = (file) => {
-  const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  if (!imageTypes.includes(file.type)) {
-    ElMessage.error('只能上传图片')
-    return false
-  }
-  if (file.size / 1024 / 1024 > 2) {
-    ElMessage.error('上传图片大小不能超过2M')
-    return false
-  }
-  return true
-}
-
-const handleFileUpload = async ({ file }) => {
-  try {
-    const res = await uploadFileApi(file)
-    if (res.code === 200) {
-      form.avatar = res.data?.url
-    }
-  } catch {}
-}
-
-const loadUserInfo = async () => {
-  loading.value = true
-  try {
-    const res = await getUserInfo()
-    if (res.code === 200) {
-      Object.assign(form, res.data)
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-// 发送请求更新用户信息
-const handleSubmit = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  submitting.value = true
-  try {
-    const res = await updateUserInfo(form)
-    if (res.code === 200) {
-      updateUser(res.data)
-      ElMessage.success('更新成功')
-    }
-  } finally {
-    submitting.value = false
-  }
-}
-
 onMounted(() => {
-  loadUserInfo()
+  if (user.value) Object.assign(form, { name: user.value.name, email: user.value.email ?? '', phone: user.value.phone ?? '' })
 })
+async function submit() {
+  if (!formRef.value || !await formRef.value.validate().catch(() => false)) return
+  saving.value = true
+  error.value = ''
+  try {
+    const updated = await updateProfileApi({ name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null })
+    saveUser(updated)
+    ElMessage.success('个人资料已保存')
+  } catch (cause) { error.value = errorMessage(cause) }
+  finally { saving.value = false }
+}
 </script>
 
-<style scoped>
-.avatar-uploader .avatar {
-  width: 130px;
-  height: 130px;
-  display: block;
-}
-</style>
-<style>
-.avatar-uploader .el-upload {
-  border: 1px dashed var(--el-border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: var(--el-transition-duration-fast);
-}
-.avatar-uploader .el-upload:hover {
-  border-color: var(--el-color-primary);
-}
-.el-icon.avatar-uploader-icon {
-  font-size: 28px;
-  color: #8c939d;
-  width: 130px;
-  height: 130px;
-  text-align: center;
-}
-</style>
+<template>
+  <section><div class="campus-page-heading"><p class="campus-eyebrow">PROFILE</p><h1>个人资料</h1><p>维护你的基本信息，让校园联系更方便。</p></div>
+    <div class="campus-form-card"><el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="campus-spaced" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
+        <div class="campus-form-grid"><el-form-item label="账号"><el-input :model-value="user?.username" disabled /></el-form-item><el-form-item label="当前身份"><el-input :model-value="roleLabel(user?.role)" disabled /></el-form-item></div>
+        <el-form-item label="姓名" prop="name"><el-input v-model="form.name" maxlength="50" autocomplete="name" /></el-form-item>
+        <el-form-item label="邮箱" prop="email"><el-input v-model="form.email" maxlength="50" placeholder="选填" autocomplete="email" /></el-form-item>
+        <el-form-item label="联系电话" prop="phone"><el-input v-model="form.phone" maxlength="50" placeholder="选填" autocomplete="tel" /></el-form-item>
+        <el-button type="primary" native-type="submit" :loading="saving">保存修改</el-button>
+      </el-form>
+    </div>
+  </section>
+</template>

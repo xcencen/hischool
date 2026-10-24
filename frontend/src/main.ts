@@ -2,7 +2,8 @@ import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
-import BootstrapApp from './bootstrap/BootstrapApp.vue'
-import './bootstrap/style.css'
+import App from './App.vue'
+import router from './router/campus'
+import './styles/campus.css'
 
-createApp(BootstrapApp).use(ElementPlus, { locale: zhCn }).mount('#app')
+createApp(App).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')

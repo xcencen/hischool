@@ -1,0 +1,128 @@
+:root {
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #26334a;
+  background: #f5f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --el-color-primary: #5368cf;
+  --el-color-success: #258b72;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 280px; }
+a { color: inherit; text-decoration: none; }
+button, a { -webkit-tap-highlight-color: transparent; }
+.campus-app h1, .campus-app h2, .campus-app p { letter-spacing: normal; }
+.campus-app h1 { margin: 0; color: #25334b; font-size: 30px; line-height: 1.4; font-weight: 700; }
+.campus-app h2 { margin: 0; font-size: 20px; line-height: 1.5; }
+.campus-brand { display: inline-flex; align-items: center; gap: 11px; color: #25334b; font-size: 22px; font-weight: 750; letter-spacing: -0.7px; }
+.campus-logo { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 11px; color: white; background: #5368cf; font-size: 25px; font-weight: 800; }
+.campus-brand-caption { margin-left: 12px; padding-left: 21px; border-left: 1px solid #e2e7f0; color: #8a95a7; font-size: 12px; font-weight: 400; letter-spacing: 1px; }
+.campus-eyebrow { margin: 0 0 14px; color: #8a96b0; font-size: 11px; font-weight: 650; letter-spacing: 1.8px !important; }
+.campus-muted { color: #8a94a7; font-size: 13px; line-height: 1.75; }
+.campus-small { font-size: 12px; }
+.campus-spaced { margin-bottom: 20px; }
+.campus-inline-link { display: block; margin-top: 24px; color: #8792a8; font-size: 12px; text-align: center; }
+.campus-submit { width: 100%; height: 43px; margin-top: 8px; border-radius: 8px; }
+.campus-auth-shell { display: grid; grid-template-columns: minmax(300px, 480px) minmax(300px, 440px); align-items: center; justify-content: center; gap: clamp(40px, 9vw, 150px); min-height: 100vh; padding: 50px 40px; background: radial-gradient(ellipse at 6% 45%, #e9edfc, transparent 57%), #f8faff; }
+.campus-auth-intro { display: flex; flex-direction: column; align-self: stretch; justify-content: space-between; min-height: 570px; padding: 10px 0; }
+.campus-auth-intro h1 { font-size: clamp(36px, 4vw, 54px); line-height: 1.4; letter-spacing: -1px; }
+.campus-auth-intro > div > p:last-child { color: #8390a8; line-height: 1.9; font-size: 15px; }
+.campus-auth-footnote { color: #a0a9bb; font-size: 11px; }
+.campus-auth-card { width: 100%; padding: 40px; background: white; border: 1px solid #e6eaf4; border-radius: 20px; box-shadow: 0 15px 55px #3f528408; }
+.campus-auth-card h2 { font-size: 25px; }
+.campus-auth-card > .campus-muted { margin: 8px 0 27px; }
+.campus-auth-card .el-form-item { margin-bottom: 23px; }
+.campus-auth-card .el-input__wrapper { border-radius: 8px; }
+.campus-auth-card .el-form-item__label { color: #5f6d86; font-size: 13px; }
+.campus-auth-switch { margin: 25px 0 0; color: #8a95a8; font-size: 13px; text-align: center; }
+.campus-auth-switch a { color: #5368cf; margin-left: 7px; }
+.campus-register-card { padding-top: 31px; padding-bottom: 31px; }
+.campus-register-card .el-form-item { margin-bottom: 20px; }
+.campus-recovery-card { grid-column: 1 / -1; width: min(100%, 580px); margin: 0 auto; }
+.campus-recovery-card h1 { font-size: 25px; }
+.campus-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: 79px 1fr; min-height: 100vh; }
+.campus-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 34px; border-bottom: 1px solid #e7ebf3; background: white; }
+.campus-account { display: flex; align-items: center; gap: 11px; }
+.campus-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: #5368cf; background: #eef1fd; font-size: 15px; }
+.campus-account-name { max-width: 160px; overflow: hidden; color: #56647e; font-size: 12px; }
+.campus-account-name small { display: block; margin-top: 4px; color: #9ba4b4; font-size: 10px; }
+.campus-account .el-button { color: #8a95a8; font-size: 12px; }
+.campus-sidebar { display: flex; flex-direction: column; padding: 32px 17px 24px; background: white; border-right: 1px solid #e7ebf3; }
+.campus-nav-label { margin: 0 13px 19px; color: #a0aabd; font-size: 10px; letter-spacing: 1px; }
+.campus-sidebar nav { display: flex; flex-direction: column; gap: 8px; }
+.campus-sidebar nav a { display: flex; align-items: center; gap: 12px; min-height: 45px; padding: 0 15px; color: #7e8aa0; border-radius: 9px; font-size: 13px; }
+.campus-sidebar nav a:hover { background: #f7f8fd; }
+.campus-sidebar nav a.active { background: #edf0fd; color: #5368cf; font-weight: 600; }
+.campus-status-link { margin: auto 12px 0; padding-top: 35px; color: #a0a9bc; font-size: 10px; line-height: 1.7; }
+.campus-content { width: 100%; max-width: 1280px; padding: 40px 44px 60px; min-width: 0; }
+.campus-page-heading { margin-bottom: 29px; }
+.campus-page-heading h1 { margin-bottom: 9px; font-size: 28px; }
+.campus-page-heading p:last-child { margin: 0; color: #8b97ac; font-size: 13px; line-height: 1.7; }
+.campus-heading-with-action { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.campus-welcome-card { display: flex; align-items: center; gap: 24px; padding: 30px; margin-bottom: 25px; border: 1px solid #e5eaf3; border-radius: 15px; background: white; }
+.campus-large-avatar { display: grid; place-items: center; width: 72px; height: 72px; flex-shrink: 0; border-radius: 19px; color: #5368cf; background: #edf0fd; font-size: 28px; font-weight: 600; }
+.campus-welcome-card h2 { margin: 9px 0 6px; font-size: 21px; }
+.campus-welcome-card p { margin: 0; color: #9ba4b6; font-size: 12px; }
+.campus-welcome-card > .el-tag { margin-left: auto; }
+.campus-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 20px; }
+.campus-action-card { padding: 24px; border: 1px solid #e5eaf3; border-radius: 14px; background: white; transition: border-color 0.2s, box-shadow 0.2s; }
+.campus-action-card:hover { border-color: #c9d2f2; box-shadow: 0 5px 20px #5065a709; }
+.campus-card-number { color: #b1bada; font-size: 12px; }
+.campus-action-card h2 { margin-top: 26px; font-size: 17px; }
+.campus-action-card p { margin: 11px 0 28px; color: #98a2b4; font-size: 12px; line-height: 1.7; }
+.campus-card-link { color: #7180b6; font-size: 12px; }
+.campus-form-card { max-width: 700px; padding: 30px; border: 1px solid #e5eaf3; border-radius: 15px; background: white; }
+.campus-form-card .el-form { max-width: 550px; }
+.campus-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.campus-form-grid > * { min-width: 0; }
+.campus-form-card .el-form-item__label { color: #748098; }
+.campus-form-card .el-form-item { margin-bottom: 24px; }
+.campus-form-card .el-button { margin-top: 5px; }
+.campus-table-card { padding: 24px; border: 1px solid #e5eaf3; border-radius: 15px; background: white; min-width: 0; }
+.campus-table-toolbar { display: flex; gap: 12px; margin-bottom: 22px; }
+.campus-table-toolbar .el-input { max-width: 300px; }
+.campus-pagination { display: flex; justify-content: flex-end; margin-top: 24px; overflow-x: auto; }
+.campus-app .el-dialog { border-radius: 15px; padding: 26px; }
+.campus-app .el-dialog__title { color: #33425e; font-size: 18px; font-weight: 600; }
+.campus-app .el-dialog__body { padding-top: 20px; }
+.campus-app .el-dialog .el-select { width: 100%; }
+@media (max-width: 960px) {
+  .campus-content { padding: 32px 25px 50px; }
+  .campus-layout { grid-template-columns: 190px minmax(0, 1fr); }
+  .campus-brand-caption { display: none; }
+  .campus-auth-shell { gap: 45px; padding: 35px; }
+  .campus-auth-card { padding: 30px; }
+}
+@media (max-width: 760px) {
+  .campus-layout { display: flex; flex-direction: column; }
+  .campus-header { min-height: 75px; padding: 0 19px; }
+  .campus-brand { font-size: 19px; gap: 8px; }
+  .campus-logo { width: 32px; height: 32px; border-radius: 9px; font-size: 23px; }
+  .campus-account-name, .campus-avatar { display: none; }
+  .campus-account { gap: 0; }
+  .campus-sidebar { padding: 12px 13px; border-right: none; border-bottom: 1px solid #e7ebf3; }
+  .campus-nav-label, .campus-status-link { display: none; }
+  .campus-sidebar nav { flex-direction: row; gap: 4px; overflow-x: auto; }
+  .campus-sidebar nav a { flex-shrink: 0; gap: 6px; min-height: 37px; padding: 0 10px; font-size: 12px; }
+  .campus-content { padding: 28px 17px 45px; }
+  .campus-page-heading h1 { font-size: 25px; }
+  .campus-page-heading p:last-child { font-size: 12px; }
+  .campus-eyebrow { font-size: 10px; margin-bottom: 10px; }
+  .campus-welcome-card { gap: 16px; padding: 22px; flex-wrap: wrap; }
+  .campus-large-avatar { width: 54px; height: 54px; border-radius: 14px; font-size: 24px; }
+  .campus-welcome-card > .el-tag { margin-left: 70px; }
+  .campus-welcome-card h2 { font-size: 18px; }
+  .campus-form-card, .campus-table-card { padding: 22px 18px; border-radius: 12px; }
+  .campus-form-grid { grid-template-columns: 1fr; gap: 0; }
+  .campus-heading-with-action { align-items: flex-start; }
+  .campus-heading-with-action > .el-button { margin-top: 23px; padding: 9px 11px; font-size: 12px; }
+  .campus-auth-shell { display: flex; flex-direction: column; gap: 28px; padding: 28px 20px; min-height: 100vh; }
+  .campus-auth-intro { align-self: auto; width: min(100%, 440px); min-height: 0; padding: 0; }
+  .campus-auth-intro > div, .campus-auth-footnote { display: none; }
+  .campus-auth-card { width: min(100%, 440px); padding: 27px 24px; border-radius: 16px; }
+  .campus-auth-card h2 { font-size: 23px; }
+  .campus-auth-card .el-form-item { margin-bottom: 23px; }
+  .campus-recovery-card { margin-top: 35px; }
+  .campus-recovery-card h1 { font-size: 21px; }
+}

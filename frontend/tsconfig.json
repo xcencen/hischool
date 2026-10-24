@@ -15,6 +15,11 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["src/main.ts", "src/bootstrap/**/*.ts", "src/bootstrap/**/*.vue"],
+  "include": [
+    "src/**/*.ts", "src/App.vue", "src/bootstrap/**/*.vue",
+    "src/layouts/CampusLayout.vue", "src/views/Login.vue", "src/views/Register.vue",
+    "src/views/Profile.vue", "src/views/Password.vue", "src/views/User.vue",
+    "src/views/AccountHome.vue", "src/views/ServiceUnavailable.vue"
+  ],
   "exclude": ["node_modules", "dist"]
 }

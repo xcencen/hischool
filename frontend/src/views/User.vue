@@ -1,268 +1,118 @@
-<template>
-  <div>
-    <el-card>
-      <template #header>
-        <div style="font-size: 16px; font-weight: bold">
-          <span>用户管理</span>
-        </div>
-      </template>
-      <div style="margin-bottom: 10px">
-        <el-input
-          placeholder="请输入账号或名称查询"
-          v-model="params.keywords"
-          style="width: 240px; margin-right: 8px"
-          clearable
-          @keyup.enter="handleSearch"
-          @clear="handleSearch"
-        ></el-input>
-        <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-        <el-button type="success" :icon="Plus" @click="handleCreate">新增</el-button>
-      </div>
+<script setup lang="ts">
+import { reactive, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { CampusUser, Role, CreateUserData, AdminUserData } from '../api/campus'
+import { listUsersApi, createUserApi, updateUserApi } from '../api/campus'
+import { user, saveUser, clearSession, roleLabel } from '../utils/campus-auth'
+import { errorMessage } from '../utils/campus-request'
 
-      <el-table
-        :header-cell-style="{ backgroundColor: '#f5f7fa', color: '#333' }"
-        :data="tableData"
-        style="width: 100%"
-        v-loading="loading"
-      >
-        <el-table-column prop="username" label="账号" />
-        <el-table-column prop="name" label="名称" />
-        <el-table-column prop="avatar" label="头像">
-          <template #default="{ row }">
-            <div style="min-height: 50px">
-              <img
-                v-if="row.avatar"
-                style="display: block; width: 50px; height: 50px; border-radius: 50%"
-                :src="row.avatar"
-                alt=""
-              />
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="email" label="邮箱" />
-        <el-table-column prop="phone" label="手机号" />
-        <el-table-column prop="role" label="角色" width="100">
-          <template #default="{ row }">
-            {{ row.role === 'admin' ? '管理员' : '学生' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
-              {{ row.status === 1 ? '正常' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="160">
-          <template #default="{ row }">
-            <el-button type="primary" text bg @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" text bg @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div style="margin-top: 10px; display: flex; justify-content: flex-end">
-        <el-pagination
-          v-model:current-page="params.page"
-          v-model:page-size="params.pageSize"
-          :total="total"
-          background
-          layout="total, prev, pager, next"
-          @current-change="load"
-        />
-      </div>
-    </el-card>
-
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑' : '新增'" width="450">
-      <el-form
-        ref="formRef"
-        :rules="rules"
-        :model="form"
-        label-width="80px"
-        style="width: 100%; padding-right: 30px; padding-top: 16px"
-        v-loading="loading"
-      >
-        <el-form-item label="账号" prop="username">
-          <!-- form.id 有值 那就disabled  也就是编辑的情形 -->
-          <el-input :disabled="!!form.id" v-model="form.username" placeholer="请输入账号" />
-        </el-form-item>
-        <el-form-item v-if="!form.id" label="密码" prop="password">
-          <el-input
-            type="password"
-            show-password
-            v-model="form.password"
-            placeholder="请输入密码"
-          />
-        </el-form-item>
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholer="请输入名称" />
-        </el-form-item>
-        <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role">
-            <el-option label="学生" value="student"></el-option>
-            <el-option label="管理员" value="admin"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholer="请输入邮箱" />
-        </el-form-item>
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" placeholer="请输入手机号" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio :value="1">正常</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button>取消</el-button>
-        <el-button type="primary" :loading="formLoading" @click="handleSave">确定</el-button>
-      </template>
-    </el-dialog>
-  </div>
-</template>
-
-<script setup>
-defineOptions({ name: 'User' })
-import { Search, Plus } from '@element-plus/icons-vue'
-import { createUserApi, deleteUserApi, getUserPageList, updateUserApi } from '@/api/user'
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-const params = reactive({
-  page: 1,
-  pageSize: 10,
-  keywords: ''
-})
-const loading = ref(false)
-const tableData = ref([])
+const router = useRouter()
+const users = ref<CampusUser[]>([])
 const total = ref(0)
-const dialogVisible = ref(false)
-const formRef = ref()
-const form = reactive({
-  id: null,
-  username: '',
-  password: '',
-  name: '',
-  role: 'student',
-  email: '',
-  phone: '',
-  avatar: '',
-  status: 1
-})
-const formLoading = ref(false)
-
-// 编辑不改密码：仅新增时校验 password
-const rules = computed(() => ({
-  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  ...(form.id
-    ? {}
-    : {
-        password: [
-          { required: true, message: '请输入密码', trigger: 'blur' },
-          { min: 3, max: 10, message: '密码是3-10位', trigger: 'blur' }
-        ]
-      }),
-  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  email: [{ type: 'email', message: '邮箱格式错误', trigger: 'blur' }],
-  phone: [{ pattern: /^1[3-9]\d{9}$/, message: '手机号格式错误', trigger: 'blur' }]
-}))
-
-const resetForm = () => {
-  Object.assign(form, {
-    id: null,
-    username: '',
-    password: '',
-    name: '',
-    role: 'student',
-    email: '',
-    phone: '',
-    avatar: '',
-    status: 1
-  })
+const q = ref('')
+const page = ref(1)
+const pageSize = ref(10)
+const loading = ref(false)
+const error = ref('')
+const dialog = ref(false)
+const saving = ref(false)
+const dialogError = ref('')
+const editing = ref<CampusUser | null>(null)
+const formRef = ref<FormInstance>()
+const form = reactive({ username: '', password: '', name: '', email: '', phone: '', role: 'student' as Role, status: 1 })
+let sequence = 0
+const rules: FormRules = {
+  username: [{ required: true, pattern: /^[A-Za-z0-9_]{3,50}$/, message: '账号需为3至50位字母、数字或下划线', trigger: 'blur' }],
+  name: [{ required: true, whitespace: true, message: '请输入姓名', trigger: 'blur' }, { max: 50, message: '姓名最多50个字符' }],
+  email: [{ max: 50, message: '邮箱最多50个字符' }, { type: 'email', message: '请输入有效的邮箱', trigger: 'blur' }],
+  phone: [{ max: 50, message: '联系电话最多50个字符' }],
+  password: [{ validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+    if (editing.value) return callback()
+    const length = new TextEncoder().encode(value).length
+    callback(length >= 8 && length <= 72 ? undefined : new Error('密码需为8至72个UTF-8字节'))
+  }, trigger: 'blur' }]
 }
-
-const handleCreate = () => {
-  resetForm()
-  dialogVisible.value = true
-}
-
-const handleEdit = (row) => {
-  resetForm()
-  Object.assign(form, {
-    id: row.id,
-    username: row.username,
-    name: row.name,
-    role: row.role,
-    email: row.email,
-    phone: row.phone,
-    avatar: row.avatar,
-    status: row.status
-  })
-  dialogVisible.value = true
-}
-
-// 删除用户信息
-const handleDelete = (row) => {
-  ElMessageBox.confirm(`确认删除用户 [${row.username}] ？`, '确认删除', { type: 'warning' }).then(
-    async () => {
-      const res = await deleteUserApi(row.id)
-      if (res.code === 200) {
-        ElMessage.success('删除用户成功')
-        load()
-      }
-    }
-  )
-}
-
-// 保存用户
-const handleSave = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  formLoading.value = true
-  try {
-    let res
-    if (form.id) {
-      const { password: _pw, ...payload } = form
-      res = await updateUserApi(form.id, payload)
-    } else {
-      res = await createUserApi(form)
-    }
-    if (res.code === 200) {
-      dialogVisible.value = false
-      ElMessage.success('操作成功')
-      load()
-    }
-  } finally {
-    formLoading.value = false
-  }
-}
-
-// 加载分页数据
-const load = async () => {
+async function load() {
+  const requestId = ++sequence
   loading.value = true
+  error.value = ''
   try {
-    const res = await getUserPageList({
-      page: params.page,
-      page_size: params.pageSize,
-      keywords: params.keywords
-    })
-    if (res.code === 200) {
-      tableData.value = res.data?.list
-      total.value = res.data?.total
-    }
-  } finally {
-    loading.value = false
+    const result = await listUsersApi({ q: q.value.trim(), page: page.value, page_size: pageSize.value })
+    if (requestId !== sequence) return
+    users.value = result.list
+    total.value = result.total
+  } catch (cause) { if (requestId === sequence) error.value = errorMessage(cause) }
+  finally { if (requestId === sequence) loading.value = false }
+}
+function search() { page.value = 1; void load() }
+function openEditor(value?: CampusUser) {
+  editing.value = value ? { ...value } : null
+  Object.assign(form, value ? {
+    username: value.username, password: '', name: value.name, email: value.email ?? '',
+    phone: value.phone ?? '', role: value.role, status: value.status
+  } : { username: '', password: '', name: '', email: '', phone: '', role: 'student', status: 1 })
+  dialogError.value = ''
+  dialog.value = true
+}
+async function submit() {
+  if (!formRef.value || !await formRef.value.validate().catch(() => false)) return
+  saving.value = true
+  dialogError.value = ''
+  const original = editing.value
+  const data: AdminUserData = {
+    name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null,
+    role: form.role, status: form.status
   }
+  try {
+    const updated = original
+      ? await updateUserApi(original.id, data)
+      : await createUserApi({ ...data, username: form.username.trim(), password: form.password } satisfies CreateUserData)
+    form.password = ''
+    dialog.value = false
+    ElMessage.success(original ? '用户信息已更新' : '用户已创建')
+    if (original && original.id === user.value?.id) {
+      if (original.role !== updated.role || original.status !== updated.status) {
+        clearSession()
+        await router.replace('/login')
+        return
+      }
+      saveUser(updated)
+    }
+    await load()
+  } catch (cause) { dialogError.value = errorMessage(cause) }
+  finally { saving.value = false }
 }
-
-const handleSearch = async () => {
-  params.page = 1
-  load()
-}
-
-onMounted(() => {
-  load()
-})
+onMounted(load)
 </script>
+
+<template>
+  <section>
+    <div class="campus-page-heading campus-heading-with-action"><div><p class="campus-eyebrow">ADMINISTRATION</p><h1>用户管理</h1><p>管理校园账号、角色与使用状态。</p></div><el-button type="primary" @click="openEditor()">创建用户</el-button></div>
+    <div class="campus-table-card">
+      <form class="campus-table-toolbar" @submit.prevent="search"><el-input v-model="q" placeholder="搜索账号或姓名" maxlength="50" clearable aria-label="搜索用户" /><el-button native-type="submit" :loading="loading">搜索</el-button></form>
+      <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="campus-spaced" />
+      <el-table v-loading="loading" :data="users" row-key="id" empty-text="暂无符合条件的用户">
+        <el-table-column prop="username" label="账号" min-width="140" />
+        <el-table-column prop="name" label="姓名" min-width="120" />
+        <el-table-column label="角色" width="110"><template #default="{ row }"><el-tag :type="row.role === 'admin' ? 'danger' : row.role === 'teacher' ? 'warning' : 'info'" effect="light" round>{{ roleLabel(row.role) }}</el-tag></template></el-table-column>
+        <el-table-column prop="email" label="邮箱" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ row.email || '—' }}</template></el-table-column>
+        <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'info'" effect="plain">{{ row.status === 1 ? '正常' : '已禁用' }}</el-tag></template></el-table-column>
+        <el-table-column label="操作" width="90" fixed="right"><template #default="{ row }"><el-button type="primary" link @click="openEditor(row)">编辑</el-button></template></el-table-column>
+      </el-table>
+      <div class="campus-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" :page-sizes="[10, 20, 50]" layout="total, prev, pager, next, sizes" @current-change="load" @size-change="search" /></div>
+    </div>
+    <el-dialog v-model="dialog" :title="editing ? '编辑用户' : '创建用户'" width="min(540px, 92vw)" :close-on-click-modal="false" @opened="formRef?.clearValidate()">
+      <el-alert v-if="dialogError" :title="dialogError" type="error" show-icon :closable="false" class="campus-spaced" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
+        <div class="campus-form-grid"><el-form-item label="账号" prop="username"><el-input v-model="form.username" :disabled="!!editing" maxlength="50" autocomplete="off" /></el-form-item><el-form-item label="姓名" prop="name"><el-input v-model="form.name" maxlength="50" /></el-form-item></div>
+        <el-form-item v-if="!editing" label="初始密码" prop="password"><el-input v-model="form.password" type="password" show-password autocomplete="new-password" /></el-form-item>
+        <div class="campus-form-grid"><el-form-item label="角色" prop="role"><el-select v-model="form.role"><el-option label="学生" value="student" /><el-option label="教师" value="teacher" /><el-option label="管理员" value="admin" /></el-select></el-form-item><el-form-item label="状态" prop="status"><el-select v-model="form.status"><el-option label="正常" :value="1" /><el-option label="禁用" :value="0" /></el-select></el-form-item></div>
+        <el-form-item label="邮箱" prop="email"><el-input v-model="form.email" maxlength="50" /></el-form-item><el-form-item label="联系电话" prop="phone"><el-input v-model="form.phone" maxlength="50" /></el-form-item>
+        <p v-if="editing" class="campus-muted campus-small">角色或状态调整后，该用户需要重新登录。最后一名有效管理员不能被禁用或降级。</p>
+      </el-form>
+      <template #footer><el-button @click="dialog = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">{{ editing ? '保存修改' : '创建用户' }}</el-button></template>
+    </el-dialog>
+  </section>
+</template>

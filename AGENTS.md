@@ -2,7 +2,17 @@
 
 本文记录当前仓库已确认的信息及用户明确指定的工作约定。文中路径相对于项目根目录；TODO 表示尚未确认或尚未配置的事项。
 
-## 当前有效入口：my-campus 第二步（2026-10-24）
+## 当前有效入口：my-campus 第三步（2026-10-24）
+
+- 第二步真实 Docker/MySQL/Redis 验收已通过；第三步启用新版认证、个人中心和管理员用户管理。
+- `APP_MODE=bootstrap` 保留独立健康应用；`APP_MODE=campus` 才组合新版异步 `app/api/{auth,user,admin_users}.py`。其他旧同步业务路由仍不挂载。
+- 前端 `router/campus.ts` 管理 `/login`、`/register`、`/app`、`/admin/users`，匿名状态页迁至 `/status`。活跃请求使用 `utils/campus-request.ts`，避免 Vite 优先解析同名旧 `request.js`。
+- 注册固定学生；管理员分配角色；教师共用校园端。JWT、Redis 撤销/限流和 MySQL 权限版本共同鉴权，密码/角色/状态变更使旧凭证失效。
+- 单元与真实 MySQL/Redis 回归共 91 项通过；新增测试使用独立 JWT 签名密钥，不与主演示共享。测试命令仍为全量 `pytest -q tests` 或 `compose.test.yaml`。
+- 启动、接口、演示账号和回滚见 `docs/authentication.md`，整体记录见 `docs/progress.md`。尚未启用课表、通知、活动、知识库或 AI 助手。
+- 用户已明确授权将当前及后续项目提交推送到 `https://github.com/xcencen/hischool.git` 的 `codex/my-campus-init` 分支；每步提交并推送，真实配置与密钥不提交。
+
+## 第二步记录（2026-10-24）
 
 - 第一步初始化保留。默认 `APP_MODE=bootstrap` 仍只启用独立健康应用，不导入数据库或旧配置；显式 `APP_MODE=campus` 启用新版异步 MySQL/Redis 客户端及 `/api/ready`。
 - 新版 `app/config.py` 只读取进程 `CAMPUS_*`，不会读取原 `backend/.env`。数据库只允许 `my_campus` 或 `my_campus_test`，旧实例和旧库不访问。
@@ -22,7 +32,7 @@
 - 按用户要求，开发运行环境、依赖与缓存放在 `F:\my-campus-dev`，源码留在 E 盘。现有 `backend/.venv` 和真实 `.env` 不覆盖。
 - 具体安装、启动、配置与回滚步骤见 `docs/initialization.md`。未来模型配置为百炼北京 `deepseek-v4.1-flash`，本阶段不接入模型。
 
-以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与当前第二步入口不一致时，以上述第二步约定为准。下文的密钥保护、提交和推送要求继续有效。
+以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与当前第三步入口不一致时，以上述第三步约定为准。下文的密钥保护、提交和推送要求继续有效。
 
 ## 项目概况
 

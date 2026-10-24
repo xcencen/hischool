@@ -36,7 +36,7 @@ def test_readiness_liveness_and_cleanup(monkeypatch, available, expected):
         assert response.json()["data"] == {"mysql": available, "redis": available}
         assert "sensitive" not in response.text
         assert client.get("/api/health").status_code == 200
-        assert client.post("/api/auth/login", json={}).status_code == 404
+        assert client.post("/api/auth/login", json={}).status_code == 422
     database.dispose.assert_awaited_once()
     redis.aclose.assert_awaited_once()
 

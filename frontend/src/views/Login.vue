@@ -1,132 +1,57 @@
-<template>
-  <div class="login-container">
-    <div class="login-box">
-      <h1 style="font-size: 28px">智能系统</h1>
-      <div style="margin-top: 5px; margin-bottom: 30px">基于Agent智能系统</div>
+<script setup lang="ts">
+import { reactive, ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import type { FormInstance, FormRules } from 'element-plus'
+import { login, safeRedirect } from '../utils/campus-auth'
+import { errorMessage } from '../utils/campus-request'
 
-      <el-alert
-        v-if="loginError"
-        :title="loginError"
-        type="error"
-        show-icon
-        :closable="false"
-        style="margin-bottom: 16px; text-align: left"
-      />
-
-      <el-form ref="formRef" :rules="rules" :model="form" label-width="0px" style="width: 100%">
-        <el-form-item prop="username">
-          <el-input
-            size="large"
-            v-model="form.username"
-            placeholder="请输入账号"
-            :prefix-icon="User"
-          />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            type="password"
-            size="large"
-            v-model="form.password"
-            placeholder="请输入密码"
-            :prefix-icon="Lock"
-            show-password
-          />
-        </el-form-item>
-        <div>
-          <el-button
-            size="large"
-            type="primary"
-            style="width: 100%"
-            @click="login"
-            :loading="loadingValue"
-            >登 录</el-button
-          >
-          <div style="text-align: right; margin-top: 20px">
-            还没有账号？请
-            <router-link style="color: var(--el-color-primary)" to="/register">注册</router-link>
-          </div>
-        </div>
-      </el-form>
-    </div>
-  </div>
-</template>
-
-<script setup>
-import { reactive, ref, nextTick } from 'vue'
-import { User, Lock } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import router from '@/router'
-import { loginApi } from '@/api/auth'
-import { useUser } from '@/utils/user'
-
-const { saveLoginData } = useUser()
-
-const formRef = ref()
-
-const form = reactive({
-  username: '',
-  password: ''
-})
-
-const loadingValue = ref(false)
-const loginError = ref('')
-
-const rules = {
+const route = useRoute()
+const router = useRouter()
+const formRef = ref<FormInstance>()
+const form = reactive({ username: '', password: '' })
+const loading = ref(false)
+const error = ref('')
+const notice = ref('')
+const rules: FormRules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
-
-const getLoginErrorMessage = (message) => {
-  if (message === '账号或密码错误') {
-    return '登录失败：账号或密码不正确，请检查输入及大小写后重试。'
-  }
-  if (message === '账号被禁用') {
-    return '登录失败：账号已被禁用，请联系管理员处理。'
-  }
-  return message ? `登录失败：${message}` : '登录失败，请稍后重试。'
-}
-
-const login = async () => {
-  loginError.value = ''
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  loadingValue.value = true
+onMounted(() => {
+  if (route.query.registered) notice.value = '注册成功，请使用新账号登录。'
+  if (route.query.passwordChanged) notice.value = '密码已更新，请重新登录。'
+  if (route.query.expired) error.value = '登录状态已失效，请重新登录。'
+})
+async function submit() {
+  if (!formRef.value || !await formRef.value.validate().catch(() => false)) return
+  loading.value = true
+  error.value = ''
   try {
-    const res = await loginApi(form).catch((error) => {
-      const message =
-        error?.response?.data?.message || (typeof error?.code === 'number' && error?.message)
-      loginError.value = message
-        ? getLoginErrorMessage(message)
-        : '登录服务暂时不可用，请检查网络连接或稍后重试。'
-      return null
-    })
-    if (!res) return
-    if (res.code === 200) {
-      saveLoginData(res.data)
-      ElMessage.success('登录成功')
-      await router.push('/manager/home')
-    } else {
-      loginError.value = getLoginErrorMessage(res.message)
-    }
-  } finally {
-    loadingValue.value = false
-  }
+    await login({ username: form.username.trim(), password: form.password })
+    form.password = ''
+    await router.replace(safeRedirect(route.query.redirect))
+  } catch (cause) { error.value = errorMessage(cause) }
+  finally { loading.value = false }
 }
 </script>
 
-<style scoped>
-.login-container {
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.login-box {
-  width: 380px;
-  border-radius: 8px;
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
-  padding: 30px;
-  text-align: center;
-  background-color: white;
-}
-</style>
+<template>
+  <main class="campus-auth-shell">
+    <section class="campus-auth-intro">
+      <router-link class="campus-brand" to="/"><span class="campus-logo">m</span>my-campus</router-link>
+      <div><p class="campus-eyebrow">YOUR CAMPUS, CONNECTED</p><h1>校园生活，<br />从这里开始。</h1><p>一个属于你的校园空间，<br />让信息与服务触手可及。</p></div>
+      <span class="campus-auth-footnote">my-campus · 校园服务平台</span>
+    </section>
+    <section class="campus-auth-card">
+      <p class="campus-eyebrow">WELCOME BACK</p><h2>欢迎回来</h2><p class="campus-muted">登录你的校园账号</p>
+      <el-alert v-if="notice" :title="notice" type="success" show-icon :closable="false" class="campus-spaced" />
+      <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="campus-spaced" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" size="large" @submit.prevent="submit">
+        <el-form-item label="账号" prop="username"><el-input v-model="form.username" placeholder="请输入账号" maxlength="50" autocomplete="username" /></el-form-item>
+        <el-form-item label="密码" prop="password"><el-input v-model="form.password" type="password" placeholder="请输入密码" show-password autocomplete="current-password" /></el-form-item>
+        <el-button class="campus-submit" type="primary" native-type="submit" :loading="loading">登录</el-button>
+      </el-form>
+      <p class="campus-auth-switch">还没有账号？<router-link to="/register">注册学生账号</router-link></p>
+      <router-link class="campus-inline-link" to="/status">查看服务连接状态 ↗</router-link>
+    </section>
+  </main>
+</template>

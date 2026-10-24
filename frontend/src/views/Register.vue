@@ -1,119 +1,53 @@
-<template>
-  <div class="register-container">
-    <div class="register-box">
-      <h1 style="font-size: 24px; margin-bottom: 30px">欢迎注册实验室预约系统</h1>
-
-      <el-form ref="formRef" :rules="rules" :model="form" label-width="0px" style="width: 100%">
-        <el-form-item prop="username">
-          <el-input
-            size="large"
-            v-model="form.username"
-            placeholder="请输入账号"
-            :prefix-icon="User"
-          />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            type="password"
-            size="large"
-            v-model="form.password"
-            placeholder="请输入密码"
-            :prefix-icon="Lock"
-            show-password
-          />
-        </el-form-item>
-        <el-form-item prop="confirmPassword">
-          <el-input
-            type="password"
-            size="large"
-            v-model="form.confirmPassword"
-            placeholder="请确认密码"
-            :prefix-icon="Lock"
-            show-password
-          />
-        </el-form-item>
-        <div>
-          <el-button
-            size="large"
-            type="primary"
-            :loading="loadingValue"
-            style="width: 100%"
-            @click="register"
-            >注 册</el-button
-          >
-          <div style="text-align: right; margin-top: 20px">
-            已有账号？请
-            <router-link style="color: var(--el-color-primary)" to="/login">登录</router-link>
-          </div>
-        </div>
-      </el-form>
-    </div>
-  </div>
-</template>
-
-<script setup>
+<script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { User, Lock } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { registerApi } from '@/api/auth'
-import router from '@/router'
+import { useRouter } from 'vue-router'
+import type { FormInstance, FormRules } from 'element-plus'
+import { registerApi } from '../api/campus'
+import { errorMessage } from '../utils/campus-request'
 
-const form = reactive({
-  username: '',
-  password: '',
-  confirmPassword: ''
-})
-
-const loadingValue = ref(false)
-
-const formRef = ref()
-
-const validatePass = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请确认密码'))
-  } else {
-    if (value !== form.password) {
-      callback(new Error('两次密码输入不一致'))
-    } else {
-      callback()
-    }
-  }
+const router = useRouter()
+const formRef = ref<FormInstance>()
+const loading = ref(false)
+const error = ref('')
+const form = reactive({ username: '', name: '', password: '', confirmation: '' })
+const rules: FormRules = {
+  username: [{ required: true, pattern: /^[A-Za-z0-9_]{3,50}$/, message: '账号需为3至50位字母、数字或下划线', trigger: 'blur' }],
+  name: [{ max: 50, message: '姓名最多50个字符', trigger: 'blur' }],
+  password: [{ validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+    const length = new TextEncoder().encode(value).length
+    callback(length >= 8 && length <= 72 ? undefined : new Error('密码需为8至72个UTF-8字节，建议使用字母、数字和符号'))
+  }, trigger: 'blur' }],
+  confirmation: [{ validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+    callback(value && value === form.password ? undefined : new Error('两次输入的密码不一致'))
+  }, trigger: 'blur' }]
 }
-const rules = {
-  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  confirmPassword: [{ validator: validatePass, trigger: 'blur' }]
-}
-
-const register = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  loadingValue.value = true
+async function submit() {
+  if (!formRef.value || !await formRef.value.validate().catch(() => false)) return
+  loading.value = true
+  error.value = ''
   try {
-    const res = await registerApi(form)
-    if (res.code === 200) {
-      ElMessage.success('注册成功')
-      await router.push('/login')
-    }
-  } finally {
-    loadingValue.value = false
-  }
+    await registerApi({ username: form.username.trim(), password: form.password, ...(form.name.trim() ? { name: form.name.trim() } : {}) })
+    form.password = ''
+    form.confirmation = ''
+    await router.replace({ path: '/login', query: { registered: '1' } })
+  } catch (cause) { error.value = errorMessage(cause) }
+  finally { loading.value = false }
 }
 </script>
 
-<style scoped>
-.register-container {
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.register-box {
-  width: 380px;
-  border-radius: 8px;
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
-  padding: 30px;
-  text-align: center;
-  background-color: white;
-}
-</style>
+<template>
+  <main class="campus-auth-shell">
+    <section class="campus-auth-intro"><router-link class="campus-brand" to="/"><span class="campus-logo">m</span>my-campus</router-link><div><p class="campus-eyebrow">START YOUR JOURNEY</p><h1>加入你的<br />校园空间。</h1><p>建立个人账号，<br />开启便捷的校园服务体验。</p></div><span class="campus-auth-footnote">my-campus · 校园服务平台</span></section>
+    <section class="campus-auth-card campus-register-card"><p class="campus-eyebrow">CREATE ACCOUNT</p><h2>注册学生账号</h2><p class="campus-muted">教师及管理员身份由管理员分配。</p>
+      <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="campus-spaced" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
+        <el-form-item label="账号" prop="username"><el-input v-model="form.username" placeholder="3至50位字母、数字或下划线" maxlength="50" autocomplete="username" /></el-form-item>
+        <el-form-item label="姓名（选填）" prop="name"><el-input v-model="form.name" placeholder="用于校园内展示" maxlength="50" autocomplete="name" /></el-form-item>
+        <el-form-item label="密码" prop="password"><el-input v-model="form.password" type="password" show-password placeholder="至少8个字节" autocomplete="new-password" /></el-form-item>
+        <el-form-item label="确认密码" prop="confirmation"><el-input v-model="form.confirmation" type="password" show-password placeholder="再次输入密码" autocomplete="new-password" /></el-form-item>
+        <el-button class="campus-submit" type="primary" native-type="submit" :loading="loading">创建账号</el-button>
+      </el-form>
+      <p class="campus-auth-switch">已有账号？<router-link to="/login">返回登录</router-link></p>
+    </section>
+  </main>
+</template>

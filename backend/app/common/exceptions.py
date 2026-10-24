@@ -1,6 +1,7 @@
-from fastapi import HTTPException, Request
+from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
 
 from app.common.response import Response
 
@@ -8,7 +9,7 @@ from app.common.response import Response
 class BusinessException(Exception):
     """自定义的业务异常"""
 
-    def __init__(self, message: str, code: int = 500):
+    def __init__(self, message: str, code: int = 400):
         self.message = message
         self.code = code
         super().__init__(message)
@@ -17,7 +18,7 @@ class BusinessException(Exception):
 async def business_exception_handler(request: Request, exc: BusinessException):
     """自定义业务异常处理器"""
     return JSONResponse(
-        status_code=200,
+        status_code=exc.code,
         content=Response.error(code=exc.code, message=exc.message).model_dump(),
     )
 
@@ -27,6 +28,7 @@ async def http_excpetion_hadler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content=Response.error(code=exc.status_code, message=exc.detail).model_dump(),
+        headers=exc.headers,
     )
 
 

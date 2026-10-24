@@ -1,19 +1,17 @@
-from pydantic import BaseModel
-
-from app.schemas.user import UserResponse
+from app.schemas.user import Name, Password, StrictRequest, Username, UserResponse
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+class LoginRequest(StrictRequest):
+    username: Username
+    password: Password
 
 
-class LoginResponse(BaseModel):
+class LoginResponse(StrictRequest):
     token: str
     user: UserResponse
 
 
-class RegisterRequest(BaseModel):
-    username: str
-    password: str
-    name: str | None = None
+class RegisterRequest(StrictRequest):
+    username: Username
+    password: Password
+    name: Name | None = None

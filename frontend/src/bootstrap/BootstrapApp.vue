@@ -127,3 +127,5 @@ onBeforeUnmount(() => request?.abort())
     </footer>
   </div>
 </template>
+
+<style src="./style.css"></style>
