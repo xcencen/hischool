@@ -11,6 +11,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import validate_database_url
 from app.database import Base
 from app.models.user import User  # noqa: F401 -- explicit autogenerate metadata
+from app.models.course import Course  # noqa: F401
+from app.models.enrollment import CourseEnrollment  # noqa: F401
+from app.models.schedule import Schedule  # noqa: F401
 
 
 config = context.config

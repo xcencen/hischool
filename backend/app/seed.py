@@ -67,7 +67,9 @@ async def main() -> None:
         async with database.session_factory() as session:
             async with session.begin():
                 created = await ensure_demo_users(session, passwords)
-        print("Demo seed finished; existing accounts retained.")
+                from app.demo_courses import ensure_demo_courses
+                await ensure_demo_courses(session)
+        print("Demo seed finished; existing accounts and course edits retained.")
     finally:
         await database.dispose()
 

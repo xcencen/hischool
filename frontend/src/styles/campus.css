@@ -87,6 +87,39 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .campus-app .el-dialog__title { color: #33425e; font-size: 18px; font-weight: 600; }
 .campus-app .el-dialog__body { padding-top: 20px; }
 .campus-app .el-dialog .el-select { width: 100%; }
+.campus-schedule-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 23px; border-bottom: 1px solid #eef0f6; }
+.campus-date-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.campus-date-controls .el-button + .el-button { margin-left: 0; }
+.campus-date-controls .el-date-editor.el-input { width: 145px; }
+.campus-schedule-body { min-height: 240px; }
+.campus-schedule-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 23px 0; }
+.campus-schedule-summary h2 { font-size: 17px; }
+.campus-week-grid { display: grid; grid-template-columns: repeat(7, minmax(125px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 12px; }
+.campus-week-grid.campus-single-day { grid-template-columns: minmax(180px, 340px); }
+.campus-day-column { min-height: 260px; border-radius: 10px; background: #f8f9fc; padding: 10px 8px; }
+.campus-day-heading { display: flex; justify-content: space-between; align-items: center; padding: 7px 3px 17px; color: #718097; font-size: 12px; }
+.campus-day-heading span { color: #9aa5b9; font-size: 10px; }
+.campus-day-heading.is-today strong { color: #5368cf; }
+.campus-lesson-card { display: block; padding: 13px 10px; margin-bottom: 10px; background: #edf0fd; border: 1px solid #dfe5fb; border-radius: 8px; transition: border-color .2s; }
+.campus-lesson-card:hover { border-color: #9eace7; }
+.campus-lesson-time { color: #6b79b1; font-size: 11px; }
+.campus-lesson-card h3 { margin: 9px 0 11px; font-size: 14px; line-height: 1.6; color: #475b98; }
+.campus-lesson-card p { margin: 5px 0; color: #8390b0; font-size: 10px; line-height: 1.7; overflow-wrap: anywhere; }
+.campus-lesson-detail { display: block; margin-top: 14px; font-size: 10px; color: #7282bc; }
+.campus-day-empty { margin-top: 65px; color: #bbc2d0; text-align: center; font-size: 11px; }
+.campus-course-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 20px; min-height: 160px; }
+.campus-course-card { padding: 26px; border: 1px solid #e5eaf3; background: white; border-radius: 14px; }
+.campus-course-card:hover { border-color: #bdc8ee; }
+.campus-course-code { display: inline-block; color: #8390bb; background: #eff2fc; padding: 5px 9px; font-size: 11px; border-radius: 5px; letter-spacing: .4px; }
+.campus-course-card h2 { margin-top: 21px; font-size: 19px; }
+.campus-course-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 64px; margin: 19px 0 23px; color: #98a2b4; font-size: 12px; line-height: 1.8; }
+.campus-course-detail { max-width: 800px; min-height: 280px; padding: 32px; }
+.campus-course-detail h2 { margin: 23px 0; font-size: 25px; }
+.campus-course-detail h3 { font-size: 15px; margin-top: 25px; }
+.campus-course-full-description { white-space: pre-wrap; overflow-wrap: anywhere; color: #7f8da3; line-height: 1.9; font-size: 14px; margin-bottom: 33px; }
+.campus-filter-toolbar { flex-wrap: wrap; }
+.campus-filter-toolbar .el-select, .campus-filter-toolbar .el-date-editor { width: 210px; }
+.campus-app .el-dialog .el-date-editor, .campus-app .el-dialog .el-time-panel { max-width: 100%; }
 @media (max-width: 960px) {
   .campus-content { padding: 32px 25px 50px; }
   .campus-layout { grid-template-columns: 190px minmax(0, 1fr); }

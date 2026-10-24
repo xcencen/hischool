@@ -1,283 +1,100 @@
-<template>
-  <div>
-    <el-card>
-      <template #header>
-        <div style="font-size: 16px; font-weight: bold">课表管理</div>
-      </template>
-      <div style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px">
-        <el-select
-          v-model="params.userId"
-          placeholder="按用户查看"
-          clearable
-          filterable
-          style="width: 220px"
-          @change="handleSearch"
-          @clear="handleSearch"
-        >
-          <el-option
-            v-for="u in studentOptions"
-            :key="u.id"
-            :label="`${u.name}（${u.username}）`"
-            :value="u.id"
-          />
-        </el-select>
-        <el-date-picker
-          v-model="params.date"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="按日期筛选"
-          clearable
-          @change="handleSearch"
-          @clear="handleSearch"
-        >
-        </el-date-picker>
-        <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-        <el-button type="success" :icon="Plus" @click="handleCreate">新增课表</el-button>
-      </div>
-      <el-table
-        v-loading="loading"
-        :header-cell-style="{ backgroundColor: '#f5f7fa', color: '#333' }"
-        :data="tableData"
-        style="width: 100%"
-      >
-        <el-table-column label="学生" min-width="140">
-          <template #default="{ row }"> {{ row.user_name }}（{{ row.username }}） </template>
-        </el-table-column>
-        <el-table-column prop="class_date" label="日期" width="120" />
-        <el-table-column prop="period" label="节次" width="110" />
-        <el-table-column prop="course_name" label="课程" min-width="140" />
-        <el-table-column prop="location" label="地点" min-width="120" />
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" text bg @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" text bg @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div style="margin-top: 10px; display: flex; justify-content: flex-end">
-        <el-pagination
-          v-model:current-page="params.page"
-          v-model:page-size="params.pageSize"
-          :total="total"
-          background
-          layout="total, prev, pager, next"
-          @current-change="load"
-        >
-        </el-pagination>
-      </div>
-    </el-card>
-    <el-dialog
-      v-model="dialogVisible"
-      :title="form.id ? '编辑课表' : '新增课表'"
-      width="480"
-      destroy-on-close
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="90px"
-        style="padding-right: 20px; padding-top: 8px"
-      >
-        <el-form-item label="学生" prop="user_id">
-          <el-select v-model="form.user_id" placeholder="选择学生" filterable style="width: 100%">
-            <el-option
-              v-for="u in studentOptions"
-              :key="u.id"
-              :label="`${u.name}（${u.username}）`"
-              :value="u.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="课程" prop="course_id">
-          <el-select v-model="form.course_id" placeholder="选择课程" filterable style="width: 100%">
-            <el-option
-              v-for="c in courseOptions"
-              :key="c.id"
-              :label="c.code ? `${c.name}（${c.code}）` : c.name"
-              :value="c.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="上课日期" prop="class_date">
-          <el-date-picker
-            v-model="form.class_date"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="选择日期"
-            style="width: 100%"
-          >
-          </el-date-picker>
-        </el-form-item>
-        <el-form-item label="节次" prop="period">
-          <el-input v-model="form.period" placeholder="例如：1-2 节" />
-        </el-form-item>
-        <el-form-item label="地点" prop="location">
-          <el-input v-model="form.location" placeholder="例如：教学楼 A201" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="formLoading" @click="handleSave">确定</el-button>
-      </template>
-    </el-dialog>
-  </div>
-</template>
-
-<script setup>
-defineOptions({ name: 'ScheduleManage' })
-import { Plus, Search } from '@element-plus/icons-vue'
+<script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  createScheduleApi,
-  deleteScheduleApi,
-  listSchedulesApi,
-  updateScheduleApi
-} from '@/api/schedule'
-import { listCoursesApi } from '@/api/course'
-import { getUserPageList } from '@/api/user'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { Course, Lesson, LessonInput } from '../api/courses'
+import { listCoursesApi, listLessonsApi, createLessonApi, updateLessonApi, deleteLessonApi } from '../api/courses'
+import { errorMessage } from '../utils/campus-request'
+import { shanghaiDate } from '../utils/campus-date'
 
-const params = reactive({
-  page: 1,
-  pageSize: 10,
-  userId: null,
-  date: null
-})
+const rows = ref<Lesson[]>([])
+const courses = ref<Course[]>([])
+const courseId = ref<number>()
+const day = ref('')
 const loading = ref(false)
-const tableData = ref([])
-const total = ref(0)
-
-const studentOptions = ref([])
-const courseOptions = ref([])
-
-const dialogVisible = ref(false)
-const formRef = ref()
-const formLoading = ref(false)
-const form = reactive({
-  id: null,
-  user_id: null,
-  course_id: null,
-  class_date: '',
-  period: '',
-  location: ''
-})
-
-const rules = {
-  user_id: [{ required: true, message: '请选择学生', trigger: 'change' }],
+const error = ref('')
+const dialog = ref(false)
+const saving = ref(false)
+const dialogError = ref('')
+const editing = ref<Lesson | null>(null)
+const formRef = ref<FormInstance>()
+const form = reactive({ course_id: null as number | null, class_date: shanghaiDate(),
+  start_time: '08:00:00', end_time: '09:30:00', period: '', location: '' })
+const rules: FormRules = {
   course_id: [{ required: true, message: '请选择课程', trigger: 'change' }],
   class_date: [{ required: true, message: '请选择上课日期', trigger: 'change' }],
-  period: [{ required: true, message: '请输入节次', trigger: 'blur' }],
-  location: [{ required: true, message: '请输入地点', trigger: 'blur' }]
+  start_time: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
+  end_time: [{ required: true, message: '请选择结束时间', trigger: 'change' }, {
+    validator: (_rule: unknown, value: string, callback: (error?: Error) => void) =>
+      callback(value && value > form.start_time ? undefined : new Error('结束时间必须晚于开始时间')), trigger: 'change' }],
+  period: [{ required: true, whitespace: true, message: '请输入节次', trigger: 'blur' }],
+  location: [{ required: true, whitespace: true, message: '请输入上课地点', trigger: 'blur' }]
 }
-
-const resetForm = () => {
-  Object.assign(form, {
-    id: null,
-    user_id: params.userId || null,
-    course_id: null,
-    class_date: '',
-    period: '',
-    location: ''
-  })
-}
-
-const loadStudents = async () => {
-  const res = await getUserPageList({ page: 1, page_size: 200 })
-  if (res.code === 200) {
-    studentOptions.value = (res.data?.list || []).filter((u) => u.role === 'student')
-  }
-}
-
-const loadCourses = async () => {
-  const res = await listCoursesApi()
-  if (res.code === 200) {
-    courseOptions.value = (res.data || []).filter((c) => c.status === 1)
-  }
-}
-
-const load = async () => {
+let sequence = 0
+async function load() {
+  const id = ++sequence
   loading.value = true
+  error.value = ''
   try {
-    const res = await listSchedulesApi({
-      page: params.page,
-      page_size: params.pageSize,
-      user_id: params.userId || undefined,
-      date: params.date || undefined
-    })
-    if (res.code === 200) {
-      tableData.value = res.data?.list || []
-      total.value = res.data?.total || 0
-    }
-  } finally {
-    loading.value = false
-  }
+    const [data, options] = await Promise.all([listLessonsApi({ course_id: courseId.value, date: day.value || undefined }), listCoursesApi('', true)])
+    if (id === sequence) { rows.value = data; courses.value = options }
+  } catch (cause) { if (id === sequence) { rows.value = []; error.value = errorMessage(cause) } }
+  finally { if (id === sequence) loading.value = false }
 }
-
-const handleSearch = () => {
-  params.page = 1
-  load()
+async function openEditor(value?: Lesson) {
+  try { courses.value = await listCoursesApi('', true) }
+  catch (cause) { ElMessage.error(errorMessage(cause)); return }
+  editing.value = value ?? null
+  Object.assign(form, value ? { course_id: value.course_id, class_date: value.class_date,
+    start_time: value.start_time, end_time: value.end_time, period: value.period, location: value.location } :
+    { course_id: courseId.value ?? null, class_date: day.value || shanghaiDate(),
+      start_time: '08:00:00', end_time: '09:30:00', period: '', location: '' })
+  dialogError.value = ''
+  formRef.value?.clearValidate()
+  dialog.value = true
 }
-
-const handleCreate = () => {
-  resetForm()
-  dialogVisible.value = true
-}
-
-const handleEdit = (row) => {
-  resetForm()
-  Object.assign(form, {
-    id: row.id,
-    user_id: row.user_id,
-    course_id: row.course_id,
-    class_date: row.class_date,
-    period: row.period,
-    location: row.location
-  })
-  dialogVisible.value = true
-}
-
-const handleSave = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  formLoading.value = true
+async function submit() {
+  if (!formRef.value || !await formRef.value.validate().catch(() => false) || !form.course_id) return
+  saving.value = true
+  dialogError.value = ''
+  const data: LessonInput = { ...form, course_id: form.course_id, period: form.period.trim(), location: form.location.trim() }
   try {
-    const payload = {
-      user_id: form.user_id,
-      course_id: form.course_id,
-      class_date: form.class_date,
-      period: form.period,
-      location: form.location
-    }
-    const res = form.id
-      ? await updateScheduleApi(form.id, payload)
-      : await createScheduleApi(payload)
-    if (res.code === 200) {
-      dialogVisible.value = false
-      ElMessage.success('操作成功')
-      load()
-    }
-  } finally {
-    formLoading.value = false
-  }
+    if (editing.value) await updateLessonApi(editing.value.id, data)
+    else await createLessonApi(data)
+    dialog.value = false
+    ElMessage.success('课时已保存')
+    await load()
+  } catch (cause) { dialogError.value = errorMessage(cause) }
+  finally { saving.value = false }
 }
-
-const handleDelete = (row) => {
-  ElMessageBox.confirm(
-    `确认删除「${row.user_name}」在 ${row.class_date} 的「${row.course_name}」课表？`,
-    '确认删除',
-    { type: 'warning' }
-  ).then(async () => {
-    const res = await deleteScheduleApi(row.id)
-    if (res.code === 200) {
-      ElMessage.success('已删除')
-      load()
-    }
-  })
+async function remove(value: Lesson) {
+  try { await ElMessageBox.confirm(`确认删除 ${value.class_date} 的“${value.course_name}”课时？`, '删除课时', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }) }
+  catch { return }
+  try { await deleteLessonApi(value.id); ElMessage.success('课时已删除'); await load() }
+  catch (cause) { ElMessage.error(errorMessage(cause)) }
 }
-
-onMounted(async () => {
-  await Promise.all([loadStudents(), loadCourses()])
-  load()
-})
+onMounted(load)
 </script>
+
+<template>
+  <section>
+    <div class="campus-page-heading campus-heading-with-action"><div><p class="campus-eyebrow">ADMINISTRATION</p><h1>排课管理</h1><p>按北京时间维护课时，同一教师或教室不能重复占用。</p></div><el-button type="primary" @click="openEditor()">新增课时</el-button></div>
+    <div class="campus-table-card">
+      <form class="campus-table-toolbar campus-filter-toolbar" @submit.prevent="load"><el-select v-model="courseId" clearable filterable placeholder="全部课程" aria-label="筛选课程"><el-option v-for="course in courses" :key="course.id" :label="course.name" :value="course.id" /></el-select><el-date-picker v-model="day" type="date" value-format="YYYY-MM-DD" placeholder="全部日期" aria-label="筛选日期" /><el-button native-type="submit" :loading="loading">查询</el-button></form>
+      <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon class="campus-spaced" />
+      <el-table v-loading="loading" :data="rows" empty-text="暂无课时安排">
+        <el-table-column prop="class_date" label="日期" width="115" /><el-table-column label="时间 / 节次" min-width="145"><template #default="{ row }">{{ row.start_time.slice(0, 5) }}–{{ row.end_time.slice(0, 5) }}<div class="campus-muted campus-small">{{ row.period }} 节</div></template></el-table-column><el-table-column prop="course_name" label="课程" min-width="150" /><el-table-column prop="teacher_name" label="教师" min-width="100" /><el-table-column prop="location" label="地点" min-width="130" /><el-table-column label="操作" width="125"><template #default="{ row }"><el-button link type="primary" @click="openEditor(row)">编辑</el-button><el-button link type="danger" @click="remove(row)">删除</el-button></template></el-table-column>
+      </el-table>
+    </div>
+    <el-dialog v-model="dialog" :title="editing ? '编辑课时' : '新增课时'" width="min(540px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
+      <el-alert v-if="dialogError" :title="dialogError" type="error" :closable="false" show-icon class="campus-spaced" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" :disabled="saving">
+        <el-form-item label="课程" prop="course_id"><el-select v-model="form.course_id" filterable placeholder="选择已启用课程"><el-option v-for="course in courses" :key="course.id" :label="`${course.name} · ${course.teacher_name}${course.status === 1 ? '' : '（已停用）'}`" :value="course.id" :disabled="course.status !== 1" /></el-select></el-form-item>
+        <el-form-item label="上课日期（北京时间）" prop="class_date"><el-date-picker v-model="form.class_date" type="date" value-format="YYYY-MM-DD" /></el-form-item>
+        <div class="campus-form-grid"><el-form-item label="开始时间" prop="start_time"><el-time-picker v-model="form.start_time" value-format="HH:mm:ss" format="HH:mm" /></el-form-item><el-form-item label="结束时间" prop="end_time"><el-time-picker v-model="form.end_time" value-format="HH:mm:ss" format="HH:mm" /></el-form-item></div>
+        <el-form-item label="节次" prop="period"><el-input v-model="form.period" placeholder="例如：1-2" maxlength="50" /></el-form-item><el-form-item label="上课地点" prop="location"><el-input v-model="form.location" maxlength="100" /></el-form-item>
+      </el-form>
+      <template #footer><el-button :disabled="saving" @click="dialog = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">保存课时</el-button></template>
+    </el-dialog>
+  </section>
+</template>

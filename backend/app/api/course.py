@@ -1,62 +1,26 @@
-from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.response import Response
 from app.database import get_db
-from app.dependencies.auth import get_current_admin
+from app.dependencies.auth import get_current_user
 from app.models.user import User
-from app.schemas.course import CourseCreateRequest, CourseUpdateRequest
 from app.services import course_service
 
-router = APIRouter(prefix="/courses", tags=["课程相关的 API 接口"])
+router = APIRouter(prefix="/courses", tags=["校园课程"])
 
 
 @router.get("")
-def list_courses(
-    keywords: str | None = Query(default=None, description="按名称/编码/简介模糊查询"),
-    _: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    data = course_service.list_courses(db, keywords)
-    return Response.success(data=data)
+async def list_courses(q: Annotated[str | None, Query(max_length=100)] = None,
+                       current_user: User = Depends(get_current_user),
+                       db: AsyncSession = Depends(get_db)):
+    return Response.success(data=await course_service.list_courses(db, q))
 
 
 @router.get("/{course_id}")
-def get_course(
-    course_id: int,
-    _: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    data = course_service.get_course(db, course_id)
-    return Response.success(data=data)
-
-
-@router.post("")
-def create_course(
-    data: CourseCreateRequest,
-    _: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    course = course_service.create_course(db, data)
-    return Response.success(data=course)
-
-
-@router.put("/{course_id}")
-def update_course(
-    course_id: int,
-    data: CourseUpdateRequest,
-    _: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    course = course_service.update_course(db, course_id, data)
-    return Response.success(data=course)
-
-
-@router.delete("/{course_id}")
-def delete_course(
-    course_id: int,
-    _: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    course_service.delete_course(db, course_id)
-    return Response.success()
+async def course_detail(course_id: Annotated[int, Path(ge=1)],
+                        current_user: User = Depends(get_current_user),
+                        db: AsyncSession = Depends(get_db)):
+    return Response.success(data=await course_service.get_course(db, course_id))

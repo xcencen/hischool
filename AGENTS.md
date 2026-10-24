@@ -2,7 +2,18 @@
 
 本文记录当前仓库已确认的信息及用户明确指定的工作约定。文中路径相对于项目根目录；TODO 表示尚未确认或尚未配置的事项。
 
-## 当前有效入口：my-campus 第三步（2026-10-24）
+## 当前有效入口：my-campus 第四步（2026-10-24）
+
+- 第四步启用课程、选课关联和课程级课时，新增 `app/api/{course,schedule,admin_courses,admin_schedules}.py` 异步路由；保留第三步认证入口与 bootstrap 独立健康模式。旧学习计划和 MCP 同步实现仍不挂载。
+- 校园端 `/app/schedule`、`/app/courses`、`/app/courses/:id`；管理员 `/admin/courses`、`/admin/schedules`。活跃课程请求使用 `api/courses.ts`，避免与旧 `course.js` 同名。
+- 学生课表按服务端登录身份关联 `course_enrollments`，教师按 `courses.teacher_id` 查看授课；管理员维护学生名单。教师共用校园端，不制作独立工作台。
+- `0002_courses` 新建三张表，`0003_course_comments` 修正验证时发现的注释差异；已应用迁移不可变。重复种子保留课程及已有周安排，初始选课只在首次创建演示课程时写入。
+- 真实 Docker MySQL/Redis 回归共 127 项通过，含并发冲突课时、教师变更重查、部分更新时段校验及 Alembic 元数据一致性。前端增量类型检查与本地/容器构建通过，页面冒烟覆盖三角色和移动端。
+- 迁移前备份在 F 盘，已在隔离测试库验证恢复。备份脚本、接口、页面和回滚见 `docs/courses.md`，阶段记录见 `docs/progress.md`。
+- 用户要求完成第四步后先停止，不自动进入通知、活动、知识库或 AI 阶段。本步不需要模型 API。
+- 继续遵守 F 盘环境/依赖/缓存/数据约定、配置保密和每步提交推送要求。
+
+## 第三步记录（2026-10-24）
 
 - 第二步真实 Docker/MySQL/Redis 验收已通过；第三步启用新版认证、个人中心和管理员用户管理。
 - `APP_MODE=bootstrap` 保留独立健康应用；`APP_MODE=campus` 才组合新版异步 `app/api/{auth,user,admin_users}.py`。其他旧同步业务路由仍不挂载。

@@ -19,7 +19,9 @@
     "src/**/*.ts", "src/App.vue", "src/bootstrap/**/*.vue",
     "src/layouts/CampusLayout.vue", "src/views/Login.vue", "src/views/Register.vue",
     "src/views/Profile.vue", "src/views/Password.vue", "src/views/User.vue",
-    "src/views/AccountHome.vue", "src/views/ServiceUnavailable.vue"
+    "src/views/AccountHome.vue", "src/views/ServiceUnavailable.vue",
+    "src/views/Schedule.vue", "src/views/CourseCatalog.vue", "src/views/CourseDetail.vue",
+    "src/views/Course.vue", "src/views/ScheduleManage.vue"
   ],
   "exclude": ["node_modules", "dist"]
 }

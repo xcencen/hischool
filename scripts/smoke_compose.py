@@ -15,6 +15,9 @@ from sqlalchemy import select
 from app.config import load_settings
 from app.database import Database
 from app.models.user import User
+from app.models.course import Course
+from app.models.enrollment import CourseEnrollment
+from app.models.schedule import Schedule
 async def snapshot():
     db = Database(load_settings().database_url)
     try:
@@ -22,7 +25,17 @@ async def snapshot():
             rows = (await session.execute(select(User.id, User.username, User.name,
                 User.role, User.status, User.create_time).order_by(User.id))).all()
             assert len(rows) >= 3, 'Demo users missing'
-            print(hashlib.sha256(json.dumps([list(row) for row in rows],
+            courses = (await session.execute(select(Course.id, Course.code, Course.name,
+                Course.teacher_id, Course.status, Course.description).order_by(Course.id))).all()
+            enrollments = (await session.execute(select(CourseEnrollment.id,
+                CourseEnrollment.course_id, CourseEnrollment.user_id).order_by(CourseEnrollment.id))).all()
+            lessons = (await session.execute(select(Schedule.id, Schedule.course_id, Schedule.class_date,
+                Schedule.start_time, Schedule.end_time, Schedule.period, Schedule.location)
+                .order_by(Schedule.id))).all()
+            assert len(courses) >= 2 and len(lessons) >= 3, 'Demo timetable missing'
+            data = {'users': [list(row) for row in rows], 'courses': [list(row) for row in courses],
+                    'enrollments': [list(row) for row in enrollments], 'lessons': [list(row) for row in lessons]}
+            print(hashlib.sha256(json.dumps(data,
                 default=str, ensure_ascii=False).encode()).hexdigest())
     finally:
         await db.dispose()
@@ -124,7 +137,7 @@ def main() -> None:
             compose("restart", "mysql", "redis", "api", "worker", "frontend")
             readiness(200, mysql=True, redis=True)
             readiness(200, mysql=True, redis=True, port=5173)
-            assert snapshot() == original, "User records changed across container restarts"
+            assert snapshot() == original, "User or timetable records changed across container restarts"
             compose("exec", "-T", "api", "python", "-c", WORKER)
             print("PASS: dependency outage returns 503; restart preserves data and worker access")
         finally:

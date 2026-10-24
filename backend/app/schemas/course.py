@@ -1,22 +1,50 @@
-from pydantic import BaseModel, ConfigDict
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints, field_validator
+
+from app.schemas.user import Status, StrictRequest
+
+Code = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+CourseName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=10000)]
+PositiveId = Annotated[int, Field(strict=True, ge=1)]
 
 
-class CourseCreateRequest(BaseModel):
+class CourseCreateRequest(StrictRequest):
     """新增课程的请求对象"""
 
-    name: str
-    code: str
-    description: str | None = None
-    status: int = 1
+    name: CourseName
+    code: Code
+    teacher_id: PositiveId
+    description: Description | None = None
+    status: Status = 1
 
 
-class CourseUpdateRequest(BaseModel):
+class CourseUpdateRequest(StrictRequest):
     """更新课程（可选）"""
 
-    name: str | None = None
-    code: str | None = None
-    description: str | None = None
-    status: int | None = None
+    name: CourseName | None = None
+    code: Code | None = None
+    teacher_id: PositiveId | None = None
+    description: Description | None = None
+    status: Status | None = None
+
+    @field_validator("code", "name", "teacher_id", "status")
+    @classmethod
+    def non_null(cls, value):
+        if value is None:
+            raise ValueError("字段不能为空")
+        return value
+
+
+class CourseStudentsRequest(StrictRequest):
+    student_ids: list[PositiveId] = Field(max_length=1000)
+
+
+class PersonOption(BaseModel):
+    id: int
+    name: str
+    username: str
 
 
 class CourseResponse(BaseModel):
@@ -25,7 +53,7 @@ class CourseResponse(BaseModel):
     id: int
     name: str
     code: str
+    teacher_id: int
+    teacher_name: str
     description: str | None = None
     status: int
-
-    model_config = ConfigDict(from_attributes=True)

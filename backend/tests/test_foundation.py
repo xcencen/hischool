@@ -134,8 +134,12 @@ def test_database_factory_and_session_are_lazy(monkeypatch) -> None:
     asyncio.run(check())
 
 
-def test_current_metadata_contains_only_users_with_microsecond_timestamps() -> None:
-    assert set(Base.metadata.tables) == {"users"}
+def test_enabled_metadata_preserves_user_microsecond_timestamps() -> None:
+    from app.models.course import Course  # noqa: F401
+    from app.models.enrollment import CourseEnrollment  # noqa: F401
+    from app.models.schedule import Schedule  # noqa: F401
+
+    assert set(Base.metadata.tables) == {"users", "courses", "course_enrollments", "schedules"}
     dialect = mysql.dialect()
     for field in ("create_time", "update_time"):
         timestamp = User.__table__.c[field].type.dialect_impl(dialect)
@@ -239,7 +243,9 @@ def test_offline_migration_needs_no_credentials_or_service() -> None:
     result = offline_migration({"DATABASE_URL": "mysql+pymysql://legacy:unused@localhost/old_database"})
     assert result.returncode == 0, result.stderr
     sql = result.stdout
-    assert set(re.findall(r"CREATE TABLE (\w+)", sql)) == {"alembic_version", "users"}
+    assert set(re.findall(r"CREATE TABLE (\w+)", sql)) == {
+        "alembic_version", "users", "courses", "course_enrollments", "schedules"
+    }
     assert "DATETIME(6)" in sql
     assert "utf8mb4" in sql
     assert "InnoDB" in sql

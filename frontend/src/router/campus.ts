@@ -14,6 +14,9 @@ const router = createRouter({
       path: '/app', component: () => import('../layouts/CampusLayout.vue'), meta: { requiresAuth: true },
       children: [
         { path: '', component: () => import('../views/AccountHome.vue'), meta: { title: '校园首页' } },
+        { path: 'schedule', component: () => import('../views/Schedule.vue'), meta: { title: '我的课表' } },
+        { path: 'courses', component: () => import('../views/CourseCatalog.vue'), meta: { title: '校园课程' } },
+        { path: 'courses/:id', component: () => import('../views/CourseDetail.vue'), meta: { title: '课程详情' } },
         { path: 'profile', component: () => import('../views/Profile.vue'), meta: { title: '个人资料' } },
         { path: 'password', component: () => import('../views/Password.vue'), meta: { title: '修改密码' } }
       ]
@@ -22,7 +25,9 @@ const router = createRouter({
       path: '/admin', component: () => import('../layouts/CampusLayout.vue'), meta: { requiresAuth: true, admin: true },
       children: [
         { path: '', redirect: '/admin/users' },
-        { path: 'users', component: () => import('../views/User.vue'), meta: { title: '用户管理' } }
+        { path: 'users', component: () => import('../views/User.vue'), meta: { title: '用户管理' } },
+        { path: 'courses', component: () => import('../views/Course.vue'), meta: { title: '课程管理' } },
+        { path: 'schedules', component: () => import('../views/ScheduleManage.vue'), meta: { title: '排课管理' } }
       ]
     },
     { path: '/:pathMatch(.*)*', redirect: '/app' }
