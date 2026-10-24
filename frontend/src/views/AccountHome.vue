@@ -14,6 +14,9 @@ const route = useRoute()
       <el-tag type="success" effect="plain" round>账号正常</el-tag>
     </div>
     <div class="campus-card-grid">
+      <router-link class="campus-action-card" to="/app/notices"><span class="campus-card-number">通知</span><h2>校园通知</h2><p>查看校园消息与教学安排。</p><span class="campus-card-link">查看通知 →</span></router-link>
+      <router-link class="campus-action-card" to="/app/activities"><span class="campus-card-number">活动</span><h2>校园活动</h2><p>了解活动内容，在线报名参加。</p><span class="campus-card-link">浏览活动 →</span></router-link>
+      <router-link class="campus-action-card" to="/app/registrations"><span class="campus-card-number">报名</span><h2>我的报名记录</h2><p>管理本人报名，活动开始前可取消。</p><span class="campus-card-link">查看记录 →</span></router-link>
       <router-link class="campus-action-card" to="/app/schedule"><span class="campus-card-number">课表</span><h2>我的课表</h2><p>{{ user?.role === 'teacher' ? '查看本人今日与本周的授课安排。' : '查看本人今日与本周的课程安排。' }}</p><span class="campus-card-link">查看课表 →</span></router-link>
       <router-link class="campus-action-card" to="/app/courses"><span class="campus-card-number">课程</span><h2>校园课程</h2><p>查询课程内容与授课教师。</p><span class="campus-card-link">浏览课程 →</span></router-link>
       <router-link class="campus-action-card" to="/app/profile"><span class="campus-card-number">01</span><h2>个人资料</h2><p>维护姓名、邮箱和联系电话。</p><span class="campus-card-link">编辑资料 →</span></router-link>

@@ -21,7 +21,10 @@
     "src/views/Profile.vue", "src/views/Password.vue", "src/views/User.vue",
     "src/views/AccountHome.vue", "src/views/ServiceUnavailable.vue",
     "src/views/Schedule.vue", "src/views/CourseCatalog.vue", "src/views/CourseDetail.vue",
-    "src/views/Course.vue", "src/views/ScheduleManage.vue"
+    "src/views/Course.vue", "src/views/ScheduleManage.vue",
+    "src/views/NoticeList.vue", "src/views/NoticeDetail.vue", "src/views/ActivityList.vue",
+    "src/views/ActivityDetail.vue", "src/views/Registrations.vue", "src/views/ContentManage.vue",
+    "src/views/NoticeCategories.vue"
   ],
   "exclude": ["node_modules", "dist"]
 }

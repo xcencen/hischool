@@ -2,7 +2,18 @@
 
 本文记录当前仓库已确认的信息及用户明确指定的工作约定。文中路径相对于项目根目录；TODO 表示尚未确认或尚未配置的事项。
 
-## 当前有效入口：my-campus 第四步（2026-10-24）
+## 当前有效入口：my-campus 第五步（2026-10-24）
+
+- 第五步完成校园通知、分类管理、活动、报名取消、个人报名记录以及管理员内容审核。校园端新增 `/app/notices`、`/app/activities`、`/app/registrations` 及详情页；管理端新增通知、分类、活动管理。
+- 教师在共用校园端 `/app/my-notices`、`/app/my-activities` 维护本人内容，不制作独立工作台。修改已发布内容需重新审核；审核绑定 `expected_revision`，版本不符返回 409。
+- `0004_community` 新增 `notice_categories/notices/activities/activity_registrations`，历史迁移不可变。API 时间带时区，UTC 微秒入库，页面固定北京时间。
+- 报名与取消按用户、活动、报名记录顺序加锁，复验身份，计数与唯一约束防止超额/重复；取消保留记录、恢复名额，活动开始后禁止取消。存在报名历史的活动不能删除。
+- 活跃 API 为 `api/{notices,activities,content_management,admin_community,owned_content}.py`；业务位于 `services/{publication,notice,activity}_service.py`，供后续 MCP 复用。前端使用 `api/community.ts` 和既有 `campus-request.ts`。
+- 第五步隔离提交快照在 Docker Python 3.11/MySQL/Redis 中共 161 项通过，无跳过；前端增量检查、本地及容器生产构建通过，三角色页面和移动端业务闭环通过。
+- 工作区另有并行 AI 基础模块改动。用户已确认它们单独保留，不混入本步提交。验收以 `88e9674` 加本步文件的 `.workbuddy/step5-verification` 快照为准，不安装或宣称通过并行 AI 依赖/模型测试。本步不需要模型 API。
+- 具体范围、接口、启动、备份回滚及第六步知识检索衔接见 `docs/community.md` 和 `docs/progress.md`。保留 F 盘环境约定、原真实配置和每步提交推送规则。
+
+## 第四步记录（2026-10-24）
 
 - 第四步启用课程、选课关联和课程级课时，新增 `app/api/{course,schedule,admin_courses,admin_schedules}.py` 异步路由；保留第三步认证入口与 bootstrap 独立健康模式。旧学习计划和 MCP 同步实现仍不挂载。
 - 校园端 `/app/schedule`、`/app/courses`、`/app/courses/:id`；管理员 `/admin/courses`、`/admin/schedules`。活跃课程请求使用 `api/courses.ts`，避免与旧 `course.js` 同名。
@@ -43,7 +54,7 @@
 - 按用户要求，开发运行环境、依赖与缓存放在 `F:\my-campus-dev`，源码留在 E 盘。现有 `backend/.venv` 和真实 `.env` 不覆盖。
 - 具体安装、启动、配置与回滚步骤见 `docs/initialization.md`。未来模型配置为百炼北京 `deepseek-v4.1-flash`，本阶段不接入模型。
 
-以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与当前第三步入口不一致时，以上述第三步约定为准。下文的密钥保护、提交和推送要求继续有效。
+以下原脚手架概况、入口、依赖与副作用描述作为旧业务参考保留；与当前有效入口不一致时，以上述最新阶段约定为准。下文的密钥保护、提交和推送要求继续有效。
 
 ## 项目概况
 

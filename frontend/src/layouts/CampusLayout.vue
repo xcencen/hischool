@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { House, User, Lock, Setting, SwitchButton, Calendar, Reading, Collection, Clock } from '@element-plus/icons-vue'
+import { House, User, Lock, Setting, SwitchButton, Calendar, Reading, Collection, Clock, Bell, Ticket, Document } from '@element-plus/icons-vue'
 import { user, roleLabel, logout } from '../utils/campus-auth'
 import { errorMessage } from '../utils/campus-request'
 
@@ -29,11 +29,19 @@ async function signOut() {
         <router-link to="/app" :class="{ active: route.path === '/app' }"><el-icon><House /></el-icon>校园首页</router-link>
         <router-link to="/app/schedule" active-class="active"><el-icon><Calendar /></el-icon>我的课表</router-link>
         <router-link to="/app/courses" active-class="active"><el-icon><Reading /></el-icon>校园课程</router-link>
+        <router-link to="/app/notices" active-class="active"><el-icon><Bell /></el-icon>校园通知</router-link>
+        <router-link to="/app/activities" active-class="active"><el-icon><Ticket /></el-icon>校园活动</router-link>
+        <router-link to="/app/registrations" active-class="active"><el-icon><Document /></el-icon>报名记录</router-link>
         <router-link to="/app/profile" active-class="active"><el-icon><User /></el-icon>个人资料</router-link>
         <router-link to="/app/password" active-class="active"><el-icon><Lock /></el-icon>账户安全</router-link>
+        <router-link v-if="user?.role === 'teacher'" to="/app/my-notices" active-class="active"><el-icon><Bell /></el-icon>我发布的通知</router-link>
+        <router-link v-if="user?.role === 'teacher'" to="/app/my-activities" active-class="active"><el-icon><Ticket /></el-icon>我发布的活动</router-link>
         <router-link v-if="user?.role === 'admin'" to="/admin/users" active-class="active"><el-icon><Setting /></el-icon>用户管理</router-link>
         <router-link v-if="user?.role === 'admin'" to="/admin/courses" active-class="active"><el-icon><Collection /></el-icon>课程管理</router-link>
         <router-link v-if="user?.role === 'admin'" to="/admin/schedules" active-class="active"><el-icon><Clock /></el-icon>排课管理</router-link>
+        <router-link v-if="user?.role === 'admin'" to="/admin/notices" active-class="active"><el-icon><Bell /></el-icon>通知管理</router-link>
+        <router-link v-if="user?.role === 'admin'" to="/admin/notice-categories" active-class="active"><el-icon><Collection /></el-icon>通知分类</router-link>
+        <router-link v-if="user?.role === 'admin'" to="/admin/activities" active-class="active"><el-icon><Ticket /></el-icon>活动管理</router-link>
       </nav>
       <router-link class="campus-status-link" to="/status">查看服务连接状态 ↗</router-link>
     </aside>

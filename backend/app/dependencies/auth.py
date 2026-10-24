@@ -41,3 +41,9 @@ async def get_current_admin(current_user: User = Depends(get_current_user)) -> U
     if current_user.role != "admin":
         raise BusinessException("无权限访问", code=403)
     return current_user
+
+
+async def get_current_staff(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role not in {"teacher", "admin"}:
+        raise BusinessException("无权限维护内容", code=403)
+    return current_user

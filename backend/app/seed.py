@@ -69,6 +69,8 @@ async def main() -> None:
                 created = await ensure_demo_users(session, passwords)
                 from app.demo_courses import ensure_demo_courses
                 await ensure_demo_courses(session)
+                from app.demo_community import ensure_demo_community
+                await ensure_demo_community(session)
         print("Demo seed finished; existing accounts and course edits retained.")
     finally:
         await database.dispose()

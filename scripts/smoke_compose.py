@@ -18,6 +18,8 @@ from app.models.user import User
 from app.models.course import Course
 from app.models.enrollment import CourseEnrollment
 from app.models.schedule import Schedule
+from app.models.notice import Notice, NoticeCategory
+from app.models.activity import Activity, ActivityRegistration
 async def snapshot():
     db = Database(load_settings().database_url)
     try:
@@ -35,6 +37,9 @@ async def snapshot():
             assert len(courses) >= 2 and len(lessons) >= 3, 'Demo timetable missing'
             data = {'users': [list(row) for row in rows], 'courses': [list(row) for row in courses],
                     'enrollments': [list(row) for row in enrollments], 'lessons': [list(row) for row in lessons]}
+            for model in (NoticeCategory, Notice, Activity, ActivityRegistration):
+                records = (await session.execute(select(*model.__table__.columns).order_by(model.id))).all()
+                data[model.__tablename__] = [list(row) for row in records]
             print(hashlib.sha256(json.dumps(data,
                 default=str, ensure_ascii=False).encode()).hexdigest())
     finally:
@@ -137,7 +142,7 @@ def main() -> None:
             compose("restart", "mysql", "redis", "api", "worker", "frontend")
             readiness(200, mysql=True, redis=True)
             readiness(200, mysql=True, redis=True, port=5173)
-            assert snapshot() == original, "User or timetable records changed across container restarts"
+            assert snapshot() == original, "Campus records changed across container restarts"
             compose("exec", "-T", "api", "python", "-c", WORKER)
             print("PASS: dependency outage returns 503; restart preserves data and worker access")
         finally:
