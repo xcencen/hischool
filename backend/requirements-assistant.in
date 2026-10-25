@@ -1,0 +1,8 @@
+# Step 7 M1: optional assistant profile; Python 3.11 / LangGraph 1.0.
+-r requirements-campus.txt
+-r requirements-knowledge.txt
+langgraph>=1.0,<1.1
+langgraph-checkpoint-mysql[asyncmy]==3.0.0
+langchain-openai>=1.0,<1.1
+fastmcp>=2.0,<3.0
+langchain-mcp-adapters>=0.3.2,<0.4

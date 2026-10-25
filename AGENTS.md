@@ -2,7 +2,18 @@
 
 本文记录当前仓库已确认的信息及用户明确指定的工作约定。文中路径相对于项目根目录；TODO 表示尚未确认或尚未配置的事项。
 
-## 当前有效入口：my-campus 第六步（2026-10-25）
+## 当前有效入口：第七步 M1 接入基础（2026-10-25）
+
+- 本轮用户明确要求编写并验证下一待办，已结束此前只读模式；本阶段为 M1 接入基础与能力验证，尚未注册助手 API、MCP 业务工具、LangGraph 对话图或助手页面。校园业务入口继续使用第六步。
+- `app/ai/` 提供独立聊天配置、固定模型工厂、百炼 Chat Completions 参数适配、Decimal 计价与显式探测。校园 Settings 不依赖聊天配置；缺少价格/用量不记为免费，不隐式应用夜间折扣，不自动切换模型。
+- M1 可选依赖位于 `requirements-assistant.in/.txt`、`requirements-assistant-dev.txt`，环境与缓存继续在 F 盘。核心组合为 LangGraph 1.0.10、MySQL checkpointer 3.0.0、langchain-openai 1.0.3、FastMCP 2.14.7、MCP 1.30.0。
+- 用户已明确授权本轮北京 `deepseek-v4.1-flash-1017` 真实探测：仅演示文本和模拟工具描述，最多 30 次请求、总 5 元。已执行 19 次；流式、usage、三种工具选择与思考开关对照通过。没有执行业务工具；缺失 reasoning 计数保留 null，不保存思考正文。
+- 真实验收在单次隔离进程中显式使用 F 盘已有百炼凭证核对聊天权限，未改写真实配置。正式聊天模板为 `backend/assistant.env.example`，真实配置约定仓库外 `F:/my-campus-dev/config/assistant.env`；本阶段不修改生产 Compose 注入。
+- `compose.assistant-test.yaml` 为独立临时测试栈，检查点库与校园测试库分离，无宿主端口、正式 env_file 或正式数据挂载。检查点探测只允许 my_campus_test，显式 schema setup、跨进程读取及线程清理；不回退 SQLite，不在命令行传 DSN。
+- Redis 令牌桶已修正毫秒/秒单位、回退时间及 TTL 边界；尚未接到业务接口。M1 暂存集合快照在 Docker Python 3.11/独立 MySQL/Redis 中 435 项通过、0 跳过；最终回归结果见 `docs/progress.md`，操作、配置及验证边界见 `docs/assistant.md`。
+- 原 README、.vscode 及剩余 AI 提示词/追踪/日志草稿继续单独保留，不混入 M1 提交。后续 M2 为私有 MCP 查询工具层；写工具、正式会话表和生产预算账本不属于本轮。
+
+## 第六步记录（2026-10-25）
 
 - 第六步交付学生手册离线导入与知识检索代码，校园端入口 `/app/knowledge`；暂不制作全功能知识库后台、OCR、生成式回答、MCP 或 LangGraph。教师继续共用校园端。
 - 用户已在 F 盘配置百炼 Key 并授权真实验收；`text-embedding-v4`、1024 维短文本连通、手册完整入库和真实语义召回已通过。密钥由 Compose 注入进程，不硬编码、不输出；缺少配置仍明确提示，不生成假向量。

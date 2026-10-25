@@ -1,0 +1,51 @@
+name: my-campus-ai-m1-test
+
+# Disposable services: no host ports, production env files or persistent data mounts.
+x-mysql: &mysql
+  image: mysql:8.4
+  environment:
+    MYSQL_DATABASE: my_campus_test
+    MYSQL_USER: my_campus
+    MYSQL_PASSWORD: m1-isolated-test-only
+    MYSQL_ROOT_PASSWORD: m1-root-isolated-test-only
+  command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00"]
+  tmpfs: [/var/lib/mysql]
+  healthcheck:
+    test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --user=\"$$MYSQL_USER\" --database=my_campus_test --execute='SELECT 1' --silent"]
+    interval: 3s
+    timeout: 5s
+    retries: 40
+    start_period: 30s
+
+services:
+  test-mysql:
+    <<: *mysql
+  checkpoint-mysql:
+    <<: *mysql
+  test-redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  tests:
+    build:
+      context: ./backend
+      target: assistant-test
+    environment:
+      APP_MODE: bootstrap
+      CAMPUS_INTEGRATION: "1"
+      CAMPUS_AI_INTEGRATION: "1"
+      CAMPUS_DATABASE_URL: mysql+asyncmy://my_campus:m1-isolated-test-only@test-mysql:3306/my_campus_test?charset=utf8mb4
+      CAMPUS_CHECKPOINT_TEST_DATABASE_URL: mysql+asyncmy://my_campus:m1-isolated-test-only@checkpoint-mysql:3306/my_campus_test?charset=utf8mb4
+      CAMPUS_REDIS_URL: redis://test-redis:6379/15
+      CAMPUS_JWT_SECRET: m1-isolated-integration-tests-only-signing-key-2026
+      CAMPUS_DEMO_ADMIN_PASSWORD: M1-admin-test-only-2026
+      CAMPUS_DEMO_TEACHER_PASSWORD: M1-teacher-test-only-2026
+      CAMPUS_DEMO_STUDENT_PASSWORD: M1-student-test-only-2026
+    depends_on:
+      test-mysql: {condition: service_healthy}
+      checkpoint-mysql: {condition: service_healthy}
+      test-redis: {condition: service_healthy}

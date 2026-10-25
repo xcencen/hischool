@@ -18,3 +18,17 @@ RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY tests ./tests
 USER campus
 CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"]
+
+FROM runtime AS assistant
+USER root
+COPY requirements-assistant.txt ./
+RUN pip install --no-cache-dir -r requirements-assistant.txt
+USER campus
+
+FROM assistant AS assistant-test
+USER root
+COPY requirements-assistant-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-assistant-dev.txt
+COPY tests ./tests
+USER campus
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"]

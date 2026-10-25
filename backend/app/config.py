@@ -79,3 +79,10 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         jwt_expire_hours=expires,
         jwt_algorithm=source.get("CAMPUS_JWT_ALGORITHM", "HS256"),
     )
+
+
+def load_llm_settings(environ=None):
+    """Compatibility entry point; optional chat settings stay independent."""
+    from app.ai.settings import load_llm_settings as load
+
+    return load(environ)
