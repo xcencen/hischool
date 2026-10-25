@@ -107,7 +107,7 @@ return 0
 
 
 async def rate_limit(
-    key: str, *, capacity: int, refill_per_s: float, cost: int = 1, ttl_s: int = 60
+    key: str, *, capacity: int, refill_per_s: float, cost: int = 1, ttl_s: int = 60, client=None
 ) -> bool:
     """Token-bucket limiter. Returns True if the request is allowed."""
     if (type(capacity) is not int or capacity <= 0
@@ -119,7 +119,7 @@ async def rate_limit(
         raise ValueError("Invalid token-bucket configuration")
     # Expiry must not recreate a full bucket before it would naturally refill.
     ttl_s = max(ttl_s, math.ceil(capacity / refill_per_s) + 1)
-    client = get_redis()
+    client = client if client is not None else get_redis()
     rkey = f"campus:ratelimit:{key}"
     now_ms = int(time.time() * 1000)
     try:

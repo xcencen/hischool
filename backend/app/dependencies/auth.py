@@ -1,13 +1,12 @@
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError
-from redis.exceptions import RedisError
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
 from app.database import get_db
 from app.models.user import User
+from app.services.identity_service import active_identity
 from app.utils.jwt import decode_access_token
 
 bearer = HTTPBearer(auto_error=False)
@@ -24,15 +23,8 @@ async def get_current_user(
         payload = decode_access_token(credentials.credentials, request.app.state.settings)
     except (InvalidTokenError, ValueError, TypeError):
         raise BusinessException("登录已失效，请重新登录", code=401) from None
-    try:
-        revoked = await request.app.state.redis.exists(f"campus:revoked:{payload['jti']}")
-    except RedisError:
-        raise BusinessException("认证服务暂不可用，请稍后重试", code=503) from None
-    if revoked:
-        raise BusinessException("登录已失效，请重新登录", code=401)
-    user = await db.scalar(select(User).where(User.id == int(payload["sub"])))
-    if user is None or user.status != 1 or user.auth_version != payload["auth_version"]:
-        raise BusinessException("登录已失效，请重新登录", code=401)
+    user = await active_identity(db, request.app.state.redis, user_id=int(payload["sub"]),
+        auth_version=payload["auth_version"], session_jti=payload["jti"], expires_at=payload["exp"])
     request.state.token_payload = payload
     return user
 

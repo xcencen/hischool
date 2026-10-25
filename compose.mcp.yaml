@@ -1,0 +1,32 @@
+# Optional private MCP service. Combine with compose.yaml and the existing .env.compose.
+services:
+  campus-mcp:
+    image: my-campus-mcp:local
+    build:
+      context: ./backend
+      target: assistant
+    profiles: [assistant-mcp]
+    command: ["python", "-m", "app.mcp"]
+    env_file:
+      - path: ${CAMPUS_MCP_ENV_FILE:-F:/my-campus-dev/config/mcp.env}
+        required: true
+      - path: ${CAMPUS_KNOWLEDGE_ENV_FILE:-F:/my-campus-dev/config/knowledge.env}
+        required: false
+    environment:
+      CAMPUS_DATABASE_URL: ${CAMPUS_DATABASE_URL:?Set the isolated campus database URL}
+      CAMPUS_REDIS_URL: redis://redis:6379/0
+      CAMPUS_KB_INDEX_DIR: /data/faiss
+    volumes:
+      - type: bind
+        source: ${CAMPUS_DATA_ROOT:?Set F data directory}/faiss
+        target: /data/faiss
+        read_only: true
+    # Deliberately no published ports, campus JWT secret, or original-document mount.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; from app.mcp.settings import load_mcp_settings; urllib.request.urlopen(f'http://127.0.0.1:{load_mcp_settings().port}/ready', timeout=6).read()"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+    depends_on:
+      init: {condition: service_completed_successfully}
+    restart: unless-stopped

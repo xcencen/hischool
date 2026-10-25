@@ -41,7 +41,7 @@ def schedule_response(lesson: Schedule, course: Course, teacher_name: str):
 
 async def list_schedules(db: AsyncSession, *, user: User | None = None,
                          start: date | None = None, end: date | None = None,
-                         course_id: int | None = None):
+                         course_id: int | None = None, limit: int | None = None):
     query = schedule_query()
     if user is not None:
         query = query.where(Course.status == 1)
@@ -59,7 +59,12 @@ async def list_schedules(db: AsyncSession, *, user: User | None = None,
         query = query.where(Schedule.class_date <= end)
     if course_id:
         query = query.where(Schedule.course_id == course_id)
-    rows = (await db.execute(query.order_by(Schedule.class_date, Schedule.start_time, Schedule.id))).all()
+    query = query.order_by(Schedule.class_date, Schedule.start_time, Schedule.id)
+    if limit is not None:
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Invalid schedule result limit")
+        query = query.limit(limit)
+    rows = (await db.execute(query)).all()
     return [schedule_response(*row) for row in rows]
 
 
