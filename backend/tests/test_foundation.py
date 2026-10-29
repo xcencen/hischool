@@ -141,11 +141,14 @@ def test_enabled_metadata_preserves_user_microsecond_timestamps() -> None:
     from app.models.notice import Notice, NoticeCategory  # noqa: F401
     from app.models.activity import Activity, ActivityRegistration  # noqa: F401
     from app.models.knowledge import KnowledgeDocument, KnowledgeVersion, KnowledgePage, KnowledgeChunk, KnowledgeIndex, KnowledgeState  # noqa: F401
+    from app.models.assistant import Conversation, AssistantRun, AssistantMessage, AssistantUsage, AssistantBudget, AssistantAlert, AssistantControl  # noqa: F401
 
     assert set(Base.metadata.tables) == {"users", "courses", "course_enrollments", "schedules",
                                          "notice_categories", "notices", "activities", "activity_registrations",
                                          "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks",
-                                         "knowledge_indexes", "knowledge_state"}
+                                         "knowledge_indexes", "knowledge_state", "assistant_conversations",
+                                         "assistant_runs", "assistant_messages", "assistant_usage",
+                                         "assistant_budgets", "assistant_alerts", "assistant_control"}
     dialect = mysql.dialect()
     for field in ("create_time", "update_time"):
         timestamp = User.__table__.c[field].type.dialect_impl(dialect)
@@ -252,7 +255,9 @@ def test_offline_migration_needs_no_credentials_or_service() -> None:
     assert set(re.findall(r"CREATE TABLE (\w+)", sql)) == {
         "alembic_version", "users", "courses", "course_enrollments", "schedules",
         "notice_categories", "notices", "activities", "activity_registrations",
-        "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks", "knowledge_indexes", "knowledge_state"
+        "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks", "knowledge_indexes", "knowledge_state",
+        "assistant_conversations", "assistant_runs", "assistant_messages", "assistant_usage",
+        "assistant_budgets", "assistant_alerts", "assistant_control"
     }
     assert "DATETIME(6)" in sql
     assert "utf8mb4" in sql

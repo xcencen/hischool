@@ -1,0 +1,33 @@
+# Optional M3 API policy and worker. Add compose.mcp.yaml for real tools.
+# Both switches default false. Approve campus data use before enabling them.
+services:
+  api:
+    env_file:
+      - path: ${CAMPUS_ASSISTANT_RUNTIME_ENV_FILE:-F:/my-campus-dev/config/assistant-runtime.env}
+        required: false
+  assistant-worker:
+    image: my-campus-assistant:local
+    build:
+      context: ./backend
+      target: assistant
+    profiles: [assistant]
+    command: ["python", "-m", "app.assistant.worker"]
+    env_file:
+      - path: ${CAMPUS_ASSISTANT_RUNTIME_ENV_FILE:-F:/my-campus-dev/config/assistant-runtime.env}
+        required: false
+      - path: ${CAMPUS_ASSISTANT_ENV_FILE:-F:/my-campus-dev/config/assistant.env}
+        required: false
+      - path: ${CAMPUS_MCP_ENV_FILE:-F:/my-campus-dev/config/mcp.env}
+        required: false
+    environment:
+      CAMPUS_DATABASE_URL: ${CAMPUS_DATABASE_URL:?Set the isolated campus database URL}
+      CAMPUS_REDIS_URL: redis://redis:6379/0
+      CAMPUS_JWT_SECRET: ${CAMPUS_JWT_SECRET:?Set local JWT secret}
+    # The worker needs neither knowledge originals nor the FAISS filesystem.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    restart: unless-stopped

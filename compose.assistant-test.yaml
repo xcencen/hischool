@@ -39,6 +39,7 @@ services:
       CAMPUS_INTEGRATION: "1"
       CAMPUS_AI_INTEGRATION: "1"
       CAMPUS_MCP_INTEGRATION: "1"
+      CAMPUS_ASSISTANT_INTEGRATION: "1"
       CAMPUS_DATABASE_URL: mysql+asyncmy://my_campus:m1-isolated-test-only@test-mysql:3306/my_campus_test?charset=utf8mb4
       CAMPUS_CHECKPOINT_TEST_DATABASE_URL: mysql+asyncmy://my_campus:m1-isolated-test-only@checkpoint-mysql:3306/my_campus_test?charset=utf8mb4
       CAMPUS_REDIS_URL: redis://test-redis:6379/15

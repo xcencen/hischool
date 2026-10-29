@@ -14,6 +14,7 @@ from app.api.activities import router as activities_router
 from app.api.admin_community import router as admin_community_router
 from app.api.owned_content import router as owned_content_router
 from app.api.knowledge import router as knowledge_router
+from app.api.assistant import router as assistant_router
 
 api = APIRouter(prefix="/api")
 api.include_router(auth_router)
@@ -28,3 +29,4 @@ api.include_router(activities_router)
 api.include_router(admin_community_router)
 api.include_router(owned_content_router)
 api.include_router(knowledge_router)
+api.include_router(assistant_router)
