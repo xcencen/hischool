@@ -5,6 +5,8 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response as HttpResponse
+from fastapi.security import HTTPAuthorizationCredentials
+from jwt import InvalidTokenError
 from redis.exceptions import RedisError
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,9 +19,10 @@ from app.assistant.settings import load_assistant_settings
 from app.common.exceptions import BusinessException
 from app.common.response import Response
 from app.database import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import bearer, get_current_user
 from app.models.assistant import AssistantAlert, AssistantUsage, Conversation
 from app.models.user import User
+from app.utils.jwt import decode_access_token
 
 
 def private_response(response: HttpResponse):
@@ -142,6 +145,25 @@ async def cancel_run(run_id: UUID, request: Request,
     from app.assistant import runs
     row = await runs.cancel_run(db, request.app.state.redis, actor, str(run_id), assistant_settings(request))
     return Response.success(data=await public_run(db, actor, row))
+
+
+@router.get("/runs/{run_id}/events")
+async def stream_run(run_id: UUID, request: Request,
+        after: Annotated[int, Query(ge=0, le=250)] = 0,
+        credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
+    # A yield-based get_current_user/get_db dependency would hold its session
+    # for the entire SSE response under the pinned FastAPI version. Decode the
+    # same JWT contract here; open_stream checks current identity and ownership
+    # with short, independent sessions before and throughout the subscription.
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise BusinessException("请先登录", code=401)
+    try:
+        payload = decode_access_token(credentials.credentials, request.app.state.settings)
+    except (InvalidTokenError, ValueError, TypeError):
+        raise BusinessException("登录已失效，请重新登录", code=401) from None
+    from app.assistant.stream import open_stream
+    return await open_stream(request, request.app.state.database, request.app.state.redis,
+        assistant_settings(request), str(run_id), dict(payload), after=after)
 
 
 @router.post("/runs/{run_id}/retry", status_code=202)

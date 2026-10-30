@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { House, User, Lock, Setting, SwitchButton, Calendar, Reading, Collection, Clock, Bell, Ticket, Document } from '@element-plus/icons-vue'
+import { House, User, Lock, Setting, SwitchButton, Calendar, Reading, Collection, Clock, Bell, Ticket, Document, ChatDotRound } from '@element-plus/icons-vue'
 import { user, roleLabel, logout } from '../utils/campus-auth'
 import { errorMessage } from '../utils/campus-request'
 
@@ -30,6 +30,7 @@ async function signOut() {
         <router-link to="/app/schedule" active-class="active"><el-icon><Calendar /></el-icon>我的课表</router-link>
         <router-link to="/app/courses" active-class="active"><el-icon><Reading /></el-icon>校园课程</router-link>
         <router-link to="/app/knowledge" active-class="active"><el-icon><Reading /></el-icon>知识检索</router-link>
+        <router-link to="/app/assistant" active-class="active"><el-icon><ChatDotRound /></el-icon>校园助手</router-link>
         <router-link to="/app/notices" active-class="active"><el-icon><Bell /></el-icon>校园通知</router-link>
         <router-link to="/app/activities" active-class="active"><el-icon><Ticket /></el-icon>校园活动</router-link>
         <router-link to="/app/registrations" active-class="active"><el-icon><Document /></el-icon>报名记录</router-link>

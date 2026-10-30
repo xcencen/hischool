@@ -14,6 +14,7 @@ const router = createRouter({
       path: '/app', component: () => import('../layouts/CampusLayout.vue'), meta: { requiresAuth: true },
       children: [
         { path: '', component: () => import('../views/AccountHome.vue'), meta: { title: '校园首页' } },
+        { path: 'assistant', component: () => import('../views/AssistantChat.vue'), meta: { title: '校园助手' } },
         { path: 'knowledge', component: () => import('../views/KnowledgeSearch.vue'), meta: { title: '校园知识检索' } },
         { path: 'notices', component: () => import('../views/NoticeList.vue'), meta: { title: '校园通知' } },
         { path: 'notices/:id', component: () => import('../views/NoticeDetail.vue'), meta: { title: '通知详情' } },
