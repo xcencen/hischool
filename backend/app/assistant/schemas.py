@@ -70,7 +70,7 @@ def run_response(run):
     return dict(id=run.public_id, conversation_id=getattr(run, "conversation_public_id", None),
         status=run.status, reason=run.reason, cancel_requested=bool(run.cancel_requested),
         model_calls=run.model_calls, tool_calls=run.tool_calls,
-        cost_limit=str(run.cost_limit), reserved=str(run.reserved), spent=str(run.spent),
+        cost_limit=format(run.cost_limit, "f"), reserved=format(run.reserved, "f"), spent=format(run.spent, "f"),
         budget_day=run.budget_day.isoformat(), created_at=timestamp(run.create_time),
         started_at=timestamp(run.started_at), finished_at=timestamp(run.finished_at),
         deadline_at=timestamp(run.deadline_at))
@@ -78,5 +78,5 @@ def run_response(run):
 
 def alert_response(alert):
     return dict(id=alert.id, day=alert.day.isoformat(), scope=alert.scope, kind=alert.kind,
-                amount=str(alert.amount), cap=str(alert.cap), acknowledged=bool(alert.acknowledged),
+                amount=format(alert.amount, "f"), cap=format(alert.cap, "f"), acknowledged=bool(alert.acknowledged),
                 created_at=timestamp(alert.create_time))

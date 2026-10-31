@@ -245,6 +245,6 @@ async def snapshot(db, owner_id, day, *, user_daily_limit, global_daily_limit, i
             AssistantBudget.scope == scope, AssistantBudget.scope_id == scope_id))
         cap = min(row.cap, money(configured_cap)) if row is not None else money(configured_cap)
         spent, reserved = (row.spent, row.reserved) if row is not None else (ZERO, ZERO)
-        result[scope] = {"cap": str(cap), "spent": str(spent), "reserved": str(reserved),
-            "available": str(max(ZERO, cap - spent - reserved)), "estimated": True}
+        result[scope] = {"cap": format(cap, "f"), "spent": format(spent, "f"), "reserved": format(reserved, "f"),
+            "available": format(max(ZERO, cap - spent - reserved), "f"), "estimated": True}
     return result

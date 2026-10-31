@@ -131,6 +131,39 @@ def create(client, world, *, actor="a", title="Synthetic conversation"):
     return response.json()["data"]["id"]
 
 
+def test_mysql_money_round_trip_stays_fixed_point_on_all_public_dtos(client, world):
+    import re
+    identifier = create(client, world)
+    run_public_id = world.seed_turn(identifier)
+    async def prepare(db):
+        run = await db.scalar(select(AssistantRun).where(AssistantRun.public_id == run_public_id))
+        run.spent, run.reserved = Decimal("1E-8"), Decimal("0E-8")
+        db.add(AssistantUsage(run_id=run.id, call_key="fixed-money", kind="model", state="settled",
+            reserved=Decimal("1E-8"), charged=Decimal("0E-8"), resource="synthetic", price_snapshot={}))
+        db.add(AssistantAlert(owner_id=run.owner_id, day=run.budget_day, scope="run", scope_id=run.id,
+            kind="unknown_usage", amount=Decimal("1E-8"), cap=Decimal("0E-8")))
+        await db.commit()
+    world.run(prepare)
+    def data(path):
+        response = client.get("/api/assistant" + path, headers=world.headers["a"])
+        assert response.status_code == 200, response.text
+        return response.json()["data"]
+    def amount(value):
+        assert re.fullmatch(r"\d+(?:\.\d{1,8})?", value), value
+    run = data("/runs/" + run_public_id)
+    for key in ("cost_limit", "reserved", "spent"):
+        amount(run[key])
+    for usage in run["usage"]:
+        amount(usage["reserved"])
+        amount(usage["charged"])
+    for key in ("cap", "reserved", "spent", "available"):
+        amount(data("/budget")["user"][key])
+    alert = data("/alerts")["list"][0]
+    amount(alert["amount"])
+    amount(alert["cap"])
+    assert run["reserved"] == "0.00000000" and run["spent"] == "0.00000001"
+
+
 def test_owner_scoped_crud_disabled_execution_and_soft_delete_scrubs_text(client, world):
     identifier = create(client, world)
     path = "/api/assistant/conversations/" + identifier

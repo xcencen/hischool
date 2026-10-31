@@ -60,7 +60,7 @@ async def public_run(db, actor, row, *, include_usage=False):
         usage = (await db.scalars(select(AssistantUsage).where(AssistantUsage.run_id == row.id)
                                    .order_by(AssistantUsage.id))).all()
         value["usage"] = [dict(kind=item.kind, resource=item.resource, attempt=item.attempt,
-            state=item.state, reserved=str(item.reserved), charged=str(item.charged),
+            state=item.state, reserved=format(item.reserved, "f"), charged=format(item.charged, "f"),
             input_tokens=item.input_tokens, output_tokens=item.output_tokens,
             cache_read_tokens=item.cache_read_tokens, usage_unknown=bool(item.usage_unknown),
             price_version=item.price_version, latency_ms=item.latency_ms) for item in usage]
@@ -183,7 +183,7 @@ async def get_budget(request: Request, actor: User = Depends(get_current_user),
     value = await budget.snapshot(db, actor.id, day, user_daily_limit=settings.user_daily_limit,
         global_daily_limit=settings.global_daily_limit, include_global=actor.role == "admin")
     value["policy"] = dict(enabled=settings.enabled, allow_campus_data=settings.allow_campus_data,
-        run_cost_limit=str(settings.run_cost_limit), alert_ratio=str(settings.alert_ratio),
+        run_cost_limit=format(settings.run_cost_limit, "f"), alert_ratio=format(settings.alert_ratio, "f"),
         retention_days=settings.retention_days)
     return Response.success(data=value)
 
