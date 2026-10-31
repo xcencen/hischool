@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import AssistantMessages from '../components/assistant/AssistantMessages.vue'
 import AssistantComposer from '../components/assistant/AssistantComposer.vue'
+import AssistantAlerts from '../components/assistant/AssistantAlerts.vue'
 import { runReason, useAssistantChat } from '../composables/useAssistantChat'
 
 const chat = useAssistantChat()
@@ -37,6 +38,7 @@ async function removeConversation() {
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="assistant-page-alert" />
     <el-alert v-if="budgetError" :title="`助手状态暂不可用：${budgetError}`" type="warning" show-icon :closable="false" class="assistant-page-alert" />
     <el-alert v-else-if="budget && !ready" title="助手尚未启用：当前可以管理历史会话，暂不能发送问题。校园数据外发保持关闭。" type="info" show-icon :closable="false" class="assistant-page-alert" />
+    <AssistantAlerts :alerts="chat.alerts.value" :total="chat.alertTotal.value" :loading="chat.alertsLoading.value" :error="chat.alertsError.value" :pending="chat.alertPending.value" @ack="chat.acknowledgeAlert" @more="chat.refreshAlerts(true)" @refresh="chat.refreshAlerts()" />
     <div class="assistant-workspace">
       <aside class="assistant-conversations" aria-label="会话列表">
         <div class="assistant-conversations-heading"><h2>我的会话</h2><el-button size="small" type="primary" plain :loading="changing" :disabled="submitting || loadingMessages" @click="chat.newConversation">＋ 新建</el-button></div>

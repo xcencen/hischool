@@ -27,6 +27,15 @@ export interface AssistantBudget {
   user: { cap: string; spent: string; reserved: string; available: string; estimated: boolean }
   policy: { enabled: boolean; allow_campus_data: boolean; run_cost_limit: string; alert_ratio: string; retention_days: number }
 }
+export interface AssistantAlert {
+  id: number; day: string; scope: 'user' | 'global' | 'run'
+  kind: 'threshold' | 'limit' | 'overrun' | 'unknown_usage'
+  amount: string; cap: string; acknowledged: boolean; created_at: string
+}
+export const assistantAlertsApi = (page = 1, signal?: AbortSignal) =>
+  request<AssistantPage<AssistantAlert>>({ url: '/assistant/alerts', params: { page, page_size: 20 }, signal })
+export const acknowledgeAlertApi = (id: number, signal?: AbortSignal) =>
+  request<AssistantAlert>({ method: 'POST', url: `/assistant/alerts/${id}/ack`, signal })
 export type AssistantEvent = { type: 'status'; run: AssistantRun }
   | { type: 'delta'; run_id: string; sequence: number; text: string }
   | { type: 'done'; run: AssistantRun; message: AssistantMessage | null }

@@ -182,6 +182,14 @@ const server = http.createServer(async (request, response) => {
     if (pathname === '/api/user/me') return envelope(response, { id: 1, username: 'synthetic', name: '合成学生',
       role: 'student', email: null, phone: null, avatar: null, status: 1 })
     if (pathname === '/api/auth/logout') return envelope(response, null)
+    if (pathname === '/api/assistant/alerts') return envelope(response, pageList((value.name === 'alerts' || (value.name === 'alert-denial' && value.posts.length)) ? [{
+      id: 1, day: '2026-10-31', scope: 'user', kind: 'threshold', amount: '0.8', cap: '1',
+      acknowledged: Boolean(value.alertAcknowledged), created_at: '2026-10-31T00:00:00Z'
+    }] : [], url))
+    if (pathname === '/api/assistant/alerts/1/ack' && method === 'POST') {
+      value.alertAcknowledged = true
+      return envelope(response, { id: 1, acknowledged: true })
+    }
     if (pathname === '/api/assistant/budget') return envelope(response, { day: '2026-10-30', currency: 'CNY',
       user: { cap: '1', spent: '0.001', reserved: '0', available: '0.999', estimated: true },
       policy: { enabled: value.name !== 'disabled', allow_campus_data: value.name !== 'disabled',
@@ -214,6 +222,10 @@ const server = http.createServer(async (request, response) => {
         value.posts.push({ ...data, conversationId: item.id })
         if (value.name === 'http-expired') return envelope(response, null, 410)
         const run = createRun(value, item.id, data)
+        if (value.name === 'alert-denial') {
+          Object.assign(run, { status: 'failed', reason: 'budget_exceeded', finished_at: now, reserved: '0' })
+          return envelope(response, publicRun(run), 202)
+        }
         if (value.name === 'timeout' && value.posts.length === 1) {
           later(() => { if (!response.destroyed) envelope(response, publicRun(run), 202) }, 14000)
           return
@@ -440,6 +452,21 @@ try {
     assert(await page.getByRole('button', { name: '发送消息 ↑', exact: true }).isDisabled())
     await page.getByText('助手尚未启用：当前可以管理历史会话，暂不能发送问题。校园数据外发保持关闭。', { exact: true }).waitFor()
     assert.equal(value.posts.length, 0)
+  })
+  await fixture('alerts', async (page, value) => {
+    await page.getByText('额度接近上限', { exact: true }).waitFor()
+    await page.getByRole('button', { name: '标为已读', exact: true }).click()
+    await page.getByText('已读', { exact: true }).waitFor()
+    assert.equal(value.alertAcknowledged, true)
+    await page.reload()
+    await page.getByText('已读', { exact: true }).waitFor()
+    assert.equal(value.posts.length, 0, 'Reading alerts must not submit paid work')
+  })
+  await fixture('alert-denial', async (page, value) => {
+    await page.getByText('暂无告警', { exact: true }).waitFor()
+    await send(page)
+    await page.getByText('额度接近上限', { exact: true }).waitFor()
+    assert.equal(value.posts.length, 1)
   })
   await fixture('mobile', async (page) => {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))

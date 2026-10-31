@@ -4,7 +4,8 @@ import { token } from '../utils/campus-auth'
 import { readToken } from '../utils/session-storage'
 import { assistantBudgetApi, cancelRunApi, conversationApi, conversationsApi, createConversationApi,
   createRunApi, deleteConversationApi, getRunApi, messagesApi, subscribeRun, updateConversationApi } from '../api/assistant'
-import type { AssistantBudget, AssistantMessage, AssistantRun, Conversation } from '../api/assistant'
+import { assistantAlertsApi, acknowledgeAlertApi } from '../api/assistant'
+import type { AssistantAlert, AssistantBudget, AssistantMessage, AssistantRun, Conversation } from '../api/assistant'
 
 export const terminalRun = (run: AssistantRun | null) => !run || ['succeeded', 'failed', 'cancelled', 'expired'].includes(run.status)
 export function runReason(reason: string | null): string {
@@ -24,6 +25,14 @@ export function useAssistantChat() {
   const conversationTotal = ref(0)
   const selected = ref<Conversation | null>(null)
   const budget = ref<AssistantBudget | null>(null)
+  const alerts = ref<AssistantAlert[]>([])
+  const alertTotal = ref(0)
+  const alertsLoading = ref(false)
+  const alertsError = ref('')
+  const alertPending = ref<number | null>(null)
+  let alertPage = 1
+  let alertGeneration = 0
+  const acknowledged = new Set<number>()
   const messages = ref<AssistantMessage[]>([])
   const activeRun = ref<AssistantRun | null>(null)
   const input = ref('')
@@ -102,7 +111,34 @@ export function useAssistantChat() {
     error.value = errorMessage(cause)
     return true
   }
+  async function refreshAlerts(more = false) {
+    if (more && alertsLoading.value) return
+    const generation = ++alertGeneration
+    const page = more ? alertPage + 1 : 1
+    alertsLoading.value = true
+    try {
+      const data = await assistantAlertsApi(page, lifetime.signal)
+      if (!sameSession() || generation !== alertGeneration) return
+      const rows = data.list.map(item => ({ ...item, acknowledged: item.acknowledged || acknowledged.has(item.id) }))
+      alerts.value = more ? [...new Map([...alerts.value, ...rows].map(item => [item.id, item])).values()] : rows
+      alertPage = page; alertTotal.value = data.total; alertsError.value = ''
+    } catch (cause) { if (sameSession() && generation === alertGeneration) alertsError.value = errorMessage(cause) }
+    finally { if (sameSession() && generation === alertGeneration) alertsLoading.value = false }
+  }
+  async function acknowledgeAlert(id: number) {
+    if (alertPending.value !== null || !sameSession()) return
+    alertPending.value = id
+    try {
+      await acknowledgeAlertApi(id, lifetime.signal)
+      if (!sameSession()) return
+      acknowledged.add(id)
+      alerts.value = alerts.value.map(item => item.id === id ? { ...item, acknowledged: true } : item)
+      alertsError.value = ''
+    } catch (cause) { if (sameSession()) alertsError.value = errorMessage(cause) }
+    finally { if (sameSession()) alertPending.value = null }
+  }
   async function refreshBudget() {
+    void refreshAlerts()
     try {
       const data = await assistantBudgetApi(lifetime.signal)
       if (sameSession() && !lifetime.signal.aborted) { budget.value = data; budgetError.value = '' }
@@ -306,11 +342,13 @@ export function useAssistantChat() {
 
   watch(token, () => {
     lifetime.abort(); resetSelection(); conversations.value = []; budget.value = null
+    ++alertGeneration; alerts.value = []; alertTotal.value = 0; acknowledged.clear(); alertPending.value = null; alertsError.value = ''; alertsLoading.value = false
     error.value = '登录状态已变化，请重新进入助手页面。'
   })
   onMounted(reload)
   onBeforeUnmount(() => { alive = false; resetSelection(); lifetime.abort() })
   return { conversations, conversationTotal, selected, budget, messages, activeRun, input, partial,
+    alerts, alertTotal, alertsLoading, alertsError, alertPending, refreshAlerts, acknowledgeAlert,
     loading, loadingMessages, loadingOlder, submitting, changing, cancelling, error, sendError, streamError,
     budgetError, connection, pending, running, ready, canSend, canLoadOlder, statusText, reload, refreshBudget,
     selectConversation, newConversation, changeConversation, loadOlder, loadMoreConversations, submit, cancel, reconnectRun }
