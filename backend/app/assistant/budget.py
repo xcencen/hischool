@@ -205,10 +205,8 @@ async def settle_call(db, run, usage, *, cost, input_tokens=None, output_tokens=
     if charge > current.reserved or run.spent > run.cost_limit:
         await _alert(db, owner_id=run.owner_id, day=run.budget_day, scope="run", scope_id=run.id,
             kind="overrun", amount=run.spent, cap=run.cost_limit)
-    # Admission checks the configured threshold against spent + reserved.
-    # Normal settlement only transfers between those columns, so it cannot
-    # newly cross that threshold. Do not reapply an unrelated default ratio.
-    # Charges exceeding their reservation receive the stronger overrun alert.
+    # Admission already checked the configured threshold against spent + reserved.
+    # Settlement transfers between these columns; only an overrun is new here.
     await _daily_alerts(db, rows, ratio=None, overrun=True)
     await db.flush()
     return current
