@@ -66,6 +66,28 @@ def test_disabled_main_requires_neither_model_prices_mcp_secret_nor_tracing(monk
     assert database.disposed and cache.closed
 
 
+def test_windows_main_preserves_maintenance_without_linux_marker(monkeypatch):
+    database = Database()
+    cache = SimpleNamespace()
+    async def close():
+        pass
+    cache.aclose = close
+    monkeypatch.setattr(worker, "os", SimpleNamespace(name="nt"), raising=False)
+    monkeypatch.setattr(worker, "load_assistant_settings", lambda: AssistantSettings())
+    monkeypatch.setattr(worker, "load_settings", lambda: SimpleNamespace(database_url="unused", redis_url="unused"))
+    monkeypatch.setattr(worker, "Database", lambda *args: database)
+    monkeypatch.setattr(worker.Redis, "from_url", lambda *args, **kwargs: cache)
+    monkeypatch.setattr(worker, "HealthWriter", lambda: pytest.fail("Windows must not create a /tmp marker"))
+    async def serve(db, redis, settings, factory, **kwargs):
+        assert kwargs["heartbeat"] is None
+    monkeypatch.setattr(worker, "serve", serve)
+    async def run():
+        monkeypatch.setattr(asyncio.get_running_loop(), "add_signal_handler", lambda *args: None)
+        await worker.main()
+    asyncio.run(run())
+    assert database.disposed
+
+
 def test_local_concurrency_is_bounded_and_shutdown_joins_running_executions(monkeypatch):
     async def run():
         stop, entered = asyncio.Event(), asyncio.Event()
@@ -131,3 +153,44 @@ def test_finished_task_exceptions_are_retrieved_without_payload_logging(monkeypa
         assert not unhandled
     asyncio.run(run())
     assert "assistant_task status=failed" in caplog.text and "private-worker-exception" not in caplog.text
+
+
+@pytest.mark.parametrize("switches", [(False, False), (True, False), (False, True)])
+def test_health_records_maintenance_only_after_success_with_switches_off(monkeypatch, switches):
+    async def run():
+        stop = asyncio.Event()
+        events = []
+        async def recover(database):
+            events.append("recover")
+        async def purge(db, settings):
+            events.append("purge")
+            stop.set()
+        def heartbeat(**state):
+            if state.get("maintained"):
+                events.append("maintained")
+                assert state["mode"] == "maintenance"
+        monkeypatch.setattr(worker.runs, "recover_abandoned", recover)
+        monkeypatch.setattr(worker.conversations, "purge_expired", purge)
+        settings = replace(AssistantSettings(), enabled=switches[0], allow_campus_data=switches[1])
+        await worker.serve(Database(), object(), settings, lambda: pytest.fail("Unexpected client"),
+                           stop=stop, heartbeat=heartbeat)
+        assert events == ["recover", "purge", "maintained"]
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("failure", ["recovery", "purge"])
+def test_failed_maintenance_never_marks_worker_healthy(monkeypatch, failure):
+    async def run():
+        states = []
+        async def recover(database):
+            if failure == "recovery":
+                raise RuntimeError("synthetic maintenance failure")
+        async def purge(db, settings):
+            raise RuntimeError("synthetic maintenance failure")
+        monkeypatch.setattr(worker.runs, "recover_abandoned", recover)
+        monkeypatch.setattr(worker.conversations, "purge_expired", purge)
+        with pytest.raises(RuntimeError):
+            await worker.serve(Database(), object(), AssistantSettings(), object,
+                               heartbeat=lambda **state: states.append(state))
+        assert not any(state.get("maintained") for state in states)
+    asyncio.run(run())

@@ -45,6 +45,10 @@ class ScriptedProvider:
         return Decimal("0.002")
 
     async def complete(self, messages):
+        if messages[-1]["role"] == "user" and messages[-1]["content"] in {"__m5_ops_long__", "__m5_ops_large__", "__m5_ops_fault__"}:
+            await asyncio.sleep({"__m5_ops_long__": 12, "__m5_ops_large__": .25, "__m5_ops_fault__": 30}[messages[-1]["content"]])
+            return ModelReply("合成运维回复。" * (800 if messages[-1]["content"] == "__m5_ops_large__" else 5),
+                usage={"input_tokens": 100, "output_tokens": 100})
         await asyncio.sleep(.25)  # Make queued/running observable through SSE.
         usage = {"input_tokens": 100, "output_tokens": 100}
         if messages[-1]["role"] == "tool":
@@ -83,7 +87,8 @@ async def run(world, folder, cases):
         embedding_price_version="m5-double-only")
     prices = PriceTable(Decimal(2), Decimal(8), Decimal(".2"), "m5-double-only", "synthetic")
     db = Database(world.campus.database_url)
-    cache = Redis.from_url(world.campus.redis_url, decode_responses=True)
+    cache = Redis.from_url(world.campus.redis_url, decode_responses=True,
+        socket_connect_timeout=3, socket_timeout=3)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -91,7 +96,8 @@ async def run(world, folder, cases):
 
     def resources():
         return MCPResources(Database(world.campus.database_url),
-            Redis.from_url(world.campus.redis_url, decode_responses=True),
+            Redis.from_url(world.campus.redis_url, decode_responses=True,
+                socket_connect_timeout=3, socket_timeout=3),
             world.knowledge, world.embedder)
 
     api = create_app(mode="campus")

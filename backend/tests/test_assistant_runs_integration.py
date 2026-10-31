@@ -2,6 +2,7 @@
 
 import asyncio
 from copy import deepcopy
+from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
 import os
@@ -32,6 +33,7 @@ from app.models.assistant import (AssistantAlert, AssistantBudget, AssistantMess
     AssistantRun, AssistantUsage, Conversation)
 from app.models.user import User
 from app.utils.jwt import create_access_token, decode_access_token
+from app.assistant import worker
 
 
 D = Decimal
@@ -292,6 +294,67 @@ def test_lost_worker_intent_is_settled_once_and_stale_worker_cannot_replay(world
         assert final.spent == D(".03") and final.reserved == 0
         assert len(usages) == 1 and usages[0].state == "unknown" and usages[0].charged == D(".03")
         assert provider.calls == 0 and not any(message.role == "assistant" for message in messages)
+    world.run(action)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Actual SIGKILL acceptance requires Linux")
+def test_sigkill_worker_recovers_after_real_30_second_lease_without_replay(world, tmp_path):
+    async def action(database, cache):
+        conversation = await world.conversation(database)
+        queued = await world.submit(database, cache, conversation)
+        marker = tmp_path / "dispatch.txt"
+        helper = Path(__file__).parent / "support" / "assistant_interrupted_worker.py"
+        child = subprocess.Popen([sys.executable, "-B", str(helper), "--isolated",
+            queued.public_id, world.day.isoformat(), str(marker)],
+            cwd=Path(__file__).resolve().parents[1], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            async with asyncio.timeout(20):
+                while not marker.exists() or marker.read_text() != "dispatch\n":
+                    assert child.poll() is None, "Disposable worker exited before model dispatch"
+                    await asyncio.sleep(.05)
+            assert marker.read_text() == "dispatch\n"
+            current, usages, messages = await world.inspect(database, queued.public_id)
+            assert current.status == "running" and current.lease_until > utc_now()
+            assert len(usages) == 1 and usages[0].state == "reserved"
+            assert usages[0].reserved == D(".01") and current.spent == 0
+            # SIGKILL prevents executor finally/cancellation from settling usage.
+            child.kill()
+            assert await asyncio.to_thread(child.wait, timeout=5) == -9
+        finally:
+            if child.poll() is None:
+                child.kill()
+                await asyncio.to_thread(child.wait, timeout=5)
+
+        killed_at = asyncio.get_running_loop().time()
+        stop = asyncio.Event()
+        maintenance = replace(world.settings, enabled=False, allow_campus_data=False, poll_interval_s=.05)
+        maintainer = asyncio.create_task(worker.serve(database, cache, maintenance,
+            lambda: pytest.fail("Disabled recovery must not construct model clients"), stop=stop))
+        try:
+            async with asyncio.timeout(60):
+                while True:
+                    final, usages, messages = await world.inspect(database, queued.public_id)
+                    if final.status == "failed":
+                        break
+                    assert not maintainer.done(), "Maintenance worker stopped before recovery"
+                    await asyncio.sleep(.2)
+            elapsed = asyncio.get_running_loop().time() - killed_at
+            # No timestamp UPDATE or manual recovery is used before this result.
+            assert 25 <= elapsed < 60
+            assert final.reason == "interrupted" and final.spent == D(".01") and final.reserved == 0
+            assert len(usages) == 1 and usages[0].state == "unknown" and usages[0].charged == D(".01")
+            assert not any(message.role == "assistant" for message in messages)
+            assert marker.read_text() == "dispatch\n"
+            # A second recovery observes terminal accounting, without charging again.
+            assert await runs.recover_abandoned(database) == 0
+            final, usages, _ = await world.inspect(database, queued.public_id)
+            assert final.spent == D(".01") and final.reserved == 0 and len(usages) == 1
+            async with database.session_factory() as db:
+                rows = (await db.scalars(select(AssistantBudget).where(AssistantBudget.day == world.day))).all()
+                assert len(rows) == 2 and all(row.spent == D(".01") and row.reserved == 0 for row in rows)
+        finally:
+            stop.set()
+            await asyncio.wait_for(maintainer, timeout=10)
     world.run(action)
 
 

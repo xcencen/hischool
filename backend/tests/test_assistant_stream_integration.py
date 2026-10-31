@@ -228,3 +228,28 @@ def test_actual_redis_lease_enforces_user_capacity_and_releases_slots(world):
             await third.close()
         assert await cache.zcard(first.keys[1]) == 0
     world.run(action)
+
+
+def test_actual_redis_global_capacity_is_32_and_released_slot_is_reusable(world):
+    async def action(database, cache):
+        # Lease admission depends only on Redis. Distinct synthetic IDs exercise
+        # the shared global key without seeding 33 unrelated campus accounts.
+        leases = [stream.ConnectionLease(cache, 1_000_000_000 + i) for i in range(33)]
+        try:
+            for lease in leases[:32]:
+                await lease.acquire()
+            assert await cache.zcard(leases[0].keys[0]) == 32
+            with pytest.raises(BusinessException) as error:
+                await leases[32].acquire()
+            assert error.value.code == 429
+            assert await cache.zcard(leases[0].keys[0]) == 32
+            await leases[0].close()
+            await leases[32].acquire()
+            await leases[32].renew()
+            assert await cache.zcard(leases[0].keys[0]) == 32
+        finally:
+            await asyncio.gather(*(lease.close() for lease in leases))
+        assert await cache.zcard(leases[0].keys[0]) == 0
+        assert all(value == 0 for value in await asyncio.gather(
+            *(cache.zcard(lease.keys[1]) for lease in leases)))
+    world.run(action)

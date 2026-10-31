@@ -26,6 +26,12 @@ services:
     # The worker needs neither knowledge originals nor the FAISS filesystem.
     read_only: true
     tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "-B", "-m", "app.assistant.health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     depends_on:

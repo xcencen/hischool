@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import signal
 import time
 
@@ -11,6 +12,7 @@ from app.ai.pricing import load_price_table
 from app.ai.settings import load_llm_settings
 from app.assistant import conversations, runs
 from app.assistant.executor import RunExecutor
+from app.assistant.health import HealthWriter
 from app.assistant.providers import ChatProvider, check_private_runtime
 from app.assistant.settings import load_assistant_settings
 from app.config import load_settings
@@ -22,22 +24,27 @@ from app.mcp.settings import load_mcp_settings
 logger = logging.getLogger(__name__)
 
 
-async def serve(database, redis, settings, executor_factory, *, stop=None):
+async def serve(database, redis, settings, executor_factory, *, stop=None, heartbeat=None):
     """Claim durably, bound local tasks, recover expired leases and redact text."""
     stop = stop or asyncio.Event()
-    tasks, maintained = set(), 0
+    tasks, maintained = set(), None
+    mode = "active" if settings.enabled and settings.allow_campus_data else "maintenance"
     try:
         while not stop.is_set():
+            if heartbeat is not None:
+                heartbeat(mode=mode)
             for task in tasks:
                 if task.done() and not task.cancelled() and task.exception() is not None:
                     logger.warning("assistant_task status=failed")
             tasks = {task for task in tasks if not task.done()}
-            if time.monotonic() - maintained >= 5:
+            if maintained is None or time.monotonic() - maintained >= 5:
                 await runs.recover_abandoned(database)
                 async with asyncio.timeout(10):
                     async with database.session_factory() as db:
                         await conversations.purge_expired(db, settings)
                 maintained = time.monotonic()
+                if heartbeat is not None:
+                    heartbeat(mode=mode, maintained=True)
             if settings.enabled and settings.allow_campus_data and len(tasks) < settings.global_concurrency:
                 row = await runs.claim_next(database, redis, settings)
                 if row is not None:
@@ -77,7 +84,8 @@ async def main():
             CampusMCPClient(campus, mcp, database, redis))
 
     try:
-        await serve(database, redis, settings, factory, stop=stop)
+        await serve(database, redis, settings, factory, stop=stop,
+                    heartbeat=HealthWriter() if os.name == "posix" else None)
     finally:
         await redis.aclose()
         await database.dispose()
