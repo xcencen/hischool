@@ -5,10 +5,20 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 const execute = promisify(execFile)
-const folder = 'F:/my-campus-dev/temp/m5-e2e'
-const origin = 'http://127.0.0.1:18765/api'
-const container = 'my-campus-ai-m5-e2e-test-redis-1'
-const docker = 'F:/my-campus-dev/docker/app/resources/bin/docker.exe'
+const args = Object.fromEntries(process.argv.slice(2).reduce((r, v, i, a) => {
+  if (v.startsWith('--')) r.push([v.slice(2), a[i + 1]])
+  return r
+}, []))
+assert(args.artifacts && args.project && args.docker && args.origin)
+assert.match(args.project, /^my-campus-ai-m6-e2e(?:-[a-z0-9-]+)?$/)
+const folder = args.artifacts
+const origin = new URL('/api', args.origin).href
+assert(['127.0.0.1', 'localhost'].includes(new URL(origin).hostname))
+const container = `${args.project}-test-redis-1`
+const docker = args.docker
+const inspected = JSON.parse((await execute(docker, ['container', 'inspect', container], { timeout: 15000 })).stdout)[0]
+assert.equal(inspected.Config.Labels['com.docker.compose.project'], args.project)
+assert.equal(inspected.Config.Labels['com.docker.compose.service'], 'test-redis')
 const manifest = JSON.parse(await fs.readFile(`${folder}/ready.json`, 'utf8'))
 assert.equal(manifest.synthetic_only, true)
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))

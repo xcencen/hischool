@@ -1,0 +1,119 @@
+# Standalone: never combine with compose.yaml (its init migrates and seeds).
+name: my-campus-release
+x-app: &app
+  image: ${RELEASE_BACKEND_IMAGE:?Set verified registry digest}
+  pull_policy: never
+  env_file: ["${RELEASE_CAMPUS_ENV_FILE:?Set approved campus environment file}"]
+  environment: &campus
+    APP_MODE: campus
+    CAMPUS_KB_SOURCE_DIR: /data/knowledge
+    CAMPUS_KB_INDEX_DIR: /data/faiss
+    CAMPUS_ASSISTANT_ENABLED: "false"
+    CAMPUS_ASSISTANT_ALLOW_CAMPUS_DATA: "false"
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+services:
+  mysql:
+    image: ${RELEASE_MYSQL_IMAGE:?Set verified registry digest}
+    pull_policy: never
+    env_file: ["${RELEASE_MYSQL_ENV_FILE:?Set approved mysql environment file}"]
+    volumes: ["${CAMPUS_DATA_ROOT:?Set F data root}/mysql:/var/lib/mysql"]
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00"]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --user="$$MYSQL_USER" --database="$$MYSQL_DATABASE" --execute="SELECT 1" --silent']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+  redis:
+    image: ${RELEASE_REDIS_IMAGE:?Set verified registry digest}
+    pull_policy: never
+    command: [redis-server, --appendonly, "yes"]
+    volumes: ["${CAMPUS_DATA_ROOT}/redis:/data"]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+  api:
+    <<: *app
+    env_file:
+      - "${RELEASE_CAMPUS_ENV_FILE:?Set approved campus environment file}"
+      - "${RELEASE_KNOWLEDGE_ENV_FILE:?Set approved knowledge environment file}"
+    volumes:
+      - "${CAMPUS_DATA_ROOT}/knowledge:/data/knowledge:ro"
+      - "${CAMPUS_DATA_ROOT}/faiss:/data/faiss:ro"
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: [mysql, redis]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=6).read()"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+  worker:
+    <<: *app
+    command: [python, -m, app.worker]
+    env_file:
+      - "${RELEASE_CAMPUS_ENV_FILE:?Set approved campus environment file}"
+      - "${RELEASE_KNOWLEDGE_ENV_FILE:?Set approved knowledge environment file}"
+    volumes:
+      - "${CAMPUS_DATA_ROOT}/knowledge:/data/knowledge:ro"
+      - "${CAMPUS_DATA_ROOT}/faiss:/data/faiss"
+    depends_on: [mysql, redis]
+    healthcheck:
+      test: [CMD, python, -c, "from redis import Redis; from rq import Worker; from app.config import load_settings; from datetime import datetime, timezone; r=Redis.from_url(load_settings().redis_url, socket_timeout=3); assert any(w.hostname == __import__('socket').gethostname() and w.last_heartbeat and (datetime.now(timezone.utc)-w.last_heartbeat).total_seconds()<480 for w in Worker.all(connection=r))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+  assistant-worker:
+    <<: *app
+    image: ${RELEASE_ASSISTANT_IMAGE:?Set verified registry digest}
+    command: [python, -m, app.assistant.worker]
+    healthcheck:
+      test: [CMD, python, -B, -m, app.assistant.health]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    depends_on: [mysql, redis]
+  campus-mcp:
+    <<: *app
+    image: ${RELEASE_MCP_IMAGE:?Set verified registry digest}
+    profiles: [private-mcp]
+    command: [python, -m, app.mcp]
+    # Separate file contains campus DB/Redis only; never campus JWT signing key.
+    env_file:
+      - "${RELEASE_MCP_DATABASE_ENV_FILE:?Set MCP database environment file}"
+      - "${RELEASE_MCP_ENV_FILE:?Set approved private MCP environment file}"
+      - "${RELEASE_KNOWLEDGE_ENV_FILE:?Set approved knowledge environment file}"
+    environment:
+      CAMPUS_KB_INDEX_DIR: /data/faiss
+    volumes: ["${CAMPUS_DATA_ROOT}/faiss:/data/faiss:ro"]
+    depends_on: [mysql, redis]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; from app.mcp.settings import load_mcp_settings; urllib.request.urlopen(f'http://127.0.0.1:{load_mcp_settings().port}/ready', timeout=6).read()"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+  frontend:
+    image: ${RELEASE_FRONTEND_IMAGE:?Set verified registry digest}
+    pull_policy: never
+    ports: ["127.0.0.1:5173:80"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1/]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  migrate:
+    <<: *app
+    profiles: [migration]
+    command: [python, -m, alembic, upgrade, 0007_assistant_access]
+    restart: "no"
+    depends_on: [mysql]

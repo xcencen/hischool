@@ -11,6 +11,7 @@ from decimal import Decimal
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -29,7 +30,8 @@ PROJECT = "my-campus-ai-m5-release"
 
 
 def guarded_url(target):
-    if os.environ.get("M5_RELEASE_PROJECT") not in (PROJECT, "my-campus-ai-m6-release"):
+    project = os.environ.get("M5_RELEASE_PROJECT", "")
+    if project != PROJECT and not re.fullmatch(r"my-campus-ai-m6-release(?:-[a-z0-9-]+)?", project):
         raise ValueError("Explicit isolated release guard required")
     variable = "CAMPUS_DATABASE_URL" if target == "source" else "CAMPUS_CHECKPOINT_TEST_DATABASE_URL"
     value = os.environ[variable]

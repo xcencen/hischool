@@ -28,7 +28,7 @@ class CleanupTests(unittest.TestCase):
                     raise subprocess.TimeoutExpired(command, 60)
                 if command[1:3] == ['container','inspect']:
                     return subprocess.CompletedProcess(command, 0 if '--format' in command else 1,
-                        (module.PROJECT+'\n').encode(), b'')
+                        ('my-campus-ai-m6-release'+'\n').encode(), b'')
                 if command[1:3] == ['rm','-f'] and failed_cleanup:
                     raise subprocess.CalledProcessError(1, command)
                 data = b'{}'

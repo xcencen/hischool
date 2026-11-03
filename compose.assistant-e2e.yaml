@@ -5,7 +5,7 @@ services:
     extends:
       file: compose.assistant-test.yaml
       service: tests
-    image: my-campus-ai-m2-test-tests:latest
+    image: ${E2E_TEST_IMAGE:-my-campus-ai-m2-test-tests:latest}
     command: [python, -B, tests/support/assistant_e2e_server.py, --isolated]
     healthcheck:
       test: [CMD, python, -c, "from pathlib import Path; from urllib.request import urlopen; assert Path('/artifacts/ready.json').is_file(); assert urlopen('http://127.0.0.1:8000/api/ready', timeout=2).status == 200"]
@@ -26,5 +26,5 @@ services:
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ${E2E_DIST_DIR:?set production build directory}:/usr/share/nginx/html:ro
-    ports: ["127.0.0.1:18765:80"]
+    ports: ["127.0.0.1:${E2E_PROXY_PORT:-18765}:80"]
     depends_on: [api]

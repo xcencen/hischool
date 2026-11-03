@@ -1,0 +1,12 @@
+{
+ "commit":"REQUIRED_40_CHARACTER_VERIFIED_COMMIT",
+ "revision":"0007_assistant_access",
+ "config_template_version":"m6-closed-v1",
+ "rollback_commit":"REQUIRED_40_CHARACTER_PREVIOUS_COMMIT",
+ "rollback_images":{"mysql":"mysql@sha256:REQUIRED","redis":"redis@sha256:REQUIRED","api":"previous-backend@sha256:REQUIRED","worker":"previous-backend@sha256:REQUIRED","assistant-worker":"previous-assistant@sha256:REQUIRED","campus-mcp":"previous-mcp@sha256:REQUIRED","frontend":"previous-frontend@sha256:REQUIRED"},
+ "valid_until":"REQUIRED_APPROVED_UTC_WINDOW_END",
+ "assistant_enabled":false,
+ "allow_campus_data":false,
+ "images":{"mysql":"mysql@sha256:REQUIRED","redis":"redis@sha256:REQUIRED","api":"backend@sha256:REQUIRED","worker":"backend@sha256:REQUIRED","assistant-worker":"assistant@sha256:REQUIRED","campus-mcp":"mcp@sha256:REQUIRED","frontend":"frontend@sha256:REQUIRED"},
+ "admission":{"accounts":null,"notice":null,"outbound_fields":null,"prices_quotas":null,"retention":null,"window":null,"responsible":null,"backup_restore":null,"verification":null}
+}

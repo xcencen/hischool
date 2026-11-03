@@ -10,7 +10,8 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((r, v, i, a) => {
   return r
 }, []))
 assert(args.artifacts && args.playwright && args.browser)
-const origin = 'http://127.0.0.1:18765'
+const origin = args.origin || 'http://127.0.0.1:18765'
+assert(['127.0.0.1', 'localhost'].includes(new URL(origin).hostname))
 const folder = path.resolve(args.artifacts)
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = folder
 const manifest = JSON.parse(await fs.readFile(path.join(folder, 'ready.json'), 'utf8'))
