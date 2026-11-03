@@ -20,11 +20,14 @@ from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
 from app.assistant.runs import TERMINAL
+from app.assistant import access
+from app.assistant.conversations import lock_control
 from app.assistant.schemas import run_response, timestamp
 from app.common.exceptions import BusinessException
 from app.database import utc_now
 from app.mcp.catalog import Citation
 from app.models.assistant import AssistantMessage, AssistantRun, Conversation
+from app.models.assistant_access import AssistantRunAccess
 from app.services.identity_service import active_identity
 
 
@@ -123,6 +126,7 @@ async def snapshot(database, redis, settings, run_public_id, identity):
     try:
         async with asyncio.timeout(5):
             async with database.session_factory() as db:
+                await lock_control(db)
                 await active_identity(db, redis, user_id=identity.user_id,
                     auth_version=identity.auth_version, session_jti=identity.jti,
                     expires_at=identity.expires_at, current_read=True)
@@ -130,6 +134,9 @@ async def snapshot(database, redis, settings, run_public_id, identity):
                     AssistantRun.owner_id == identity.user_id))
                 if run is None:
                     raise BusinessException("运行不存在", code=404)
+                binding = await db.scalar(select(AssistantRunAccess.id).where(AssistantRunAccess.run_id == run.id))
+                if binding is not None or run.status not in TERMINAL or run.reason == 'access_revoked':
+                    await access.require_run(db, run)
                 # Match M3's conversation -> run lock order. A joined locking
                 # SELECT can lock the run first and deadlock a final commit.
                 conversation = await db.scalar(select(Conversation).where(Conversation.id == run.conversation_id,
@@ -180,7 +187,7 @@ def event(name, data, *, identifier=None):
 
 def _error_reason(error):
     if isinstance(error, BusinessException):
-        return {401: "unauthenticated", 404: "not_found", 410: "expired", 429: "rate_limited"}.get(error.code, "unavailable")
+        return {401: "unauthenticated", 403: "access_revoked", 404: "not_found", 410: "expired", 429: "rate_limited"}.get(error.code, "unavailable")
     return "unavailable"
 
 

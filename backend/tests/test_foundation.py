@@ -135,6 +135,7 @@ def test_database_factory_and_session_are_lazy(monkeypatch) -> None:
 
 
 def test_enabled_metadata_preserves_user_microsecond_timestamps() -> None:
+    from app.models.assistant_access import AssistantPolicy, AssistantAccess, AssistantConsent, AssistantRunAccess  # noqa: F401
     from app.models.course import Course  # noqa: F401
     from app.models.enrollment import CourseEnrollment  # noqa: F401
     from app.models.schedule import Schedule  # noqa: F401
@@ -148,7 +149,8 @@ def test_enabled_metadata_preserves_user_microsecond_timestamps() -> None:
                                          "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks",
                                          "knowledge_indexes", "knowledge_state", "assistant_conversations",
                                          "assistant_runs", "assistant_messages", "assistant_usage",
-                                         "assistant_budgets", "assistant_alerts", "assistant_control"}
+                                         "assistant_budgets", "assistant_alerts", "assistant_control",
+                                         "assistant_policies", "assistant_access", "assistant_consents", "assistant_run_access"}
     dialect = mysql.dialect()
     for field in ("create_time", "update_time"):
         timestamp = User.__table__.c[field].type.dialect_impl(dialect)
@@ -257,7 +259,8 @@ def test_offline_migration_needs_no_credentials_or_service() -> None:
         "notice_categories", "notices", "activities", "activity_registrations",
         "knowledge_documents", "knowledge_versions", "knowledge_pages", "knowledge_chunks", "knowledge_indexes", "knowledge_state",
         "assistant_conversations", "assistant_runs", "assistant_messages", "assistant_usage",
-        "assistant_budgets", "assistant_alerts", "assistant_control"
+        "assistant_budgets", "assistant_alerts", "assistant_control",
+        "assistant_policies", "assistant_access", "assistant_consents", "assistant_run_access"
     }
     assert "DATETIME(6)" in sql
     assert "utf8mb4" in sql

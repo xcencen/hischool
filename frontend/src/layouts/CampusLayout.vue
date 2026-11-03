@@ -38,6 +38,7 @@ async function signOut() {
         <router-link to="/app/password" active-class="active"><el-icon><Lock /></el-icon>账户安全</router-link>
         <router-link v-if="user?.role === 'teacher'" to="/app/my-notices" active-class="active"><el-icon><Bell /></el-icon>我发布的通知</router-link>
         <router-link v-if="user?.role === 'teacher'" to="/app/my-activities" active-class="active"><el-icon><Ticket /></el-icon>我发布的活动</router-link>
+        <router-link v-if="user?.role === 'admin'" to="/admin/assistant" active-class="active"><el-icon><ChatDotRound /></el-icon>助手管理</router-link>
         <router-link v-if="user?.role === 'admin'" to="/admin/users" active-class="active"><el-icon><Setting /></el-icon>用户管理</router-link>
         <router-link v-if="user?.role === 'admin'" to="/admin/courses" active-class="active"><el-icon><Collection /></el-icon>课程管理</router-link>
         <router-link v-if="user?.role === 'admin'" to="/admin/schedules" active-class="active"><el-icon><Clock /></el-icon>排课管理</router-link>

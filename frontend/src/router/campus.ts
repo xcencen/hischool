@@ -34,6 +34,7 @@ const router = createRouter({
       path: '/admin', component: () => import('../layouts/CampusLayout.vue'), meta: { requiresAuth: true, admin: true },
       children: [
         { path: '', redirect: '/admin/users' },
+        { path: 'assistant', component: () => import('../views/AdminAssistant.vue'), meta: { title: '助手管理' } },
         { path: 'users', component: () => import('../views/User.vue'), meta: { title: '用户管理' } },
         { path: 'courses', component: () => import('../views/Course.vue'), meta: { title: '课程管理' } },
         { path: 'schedules', component: () => import('../views/ScheduleManage.vue'), meta: { title: '排课管理' } },

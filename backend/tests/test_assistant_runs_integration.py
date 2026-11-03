@@ -79,16 +79,22 @@ class BlockingProvider(MockProvider):
 
 
 class MemoryTools:
-    def __init__(self):
+    def __init__(self, *, synchronize=False):
         self.calls = []
         self.active = self.maximum = 0
+        self.barrier = asyncio.Event() if synchronize else None
 
     async def call(self, name, arguments, *, campus_token, run_id):
         self.calls.append((name, arguments, run_id))
         self.active += 1
         self.maximum = max(self.maximum, self.active)
         try:
-            await asyncio.sleep(.02)
+            if self.barrier is not None:
+                if self.active == 2:
+                    self.barrier.set()
+                await asyncio.wait_for(self.barrier.wait(), timeout=3)
+            else:
+                await asyncio.sleep(.02)
             if name == "campus_get_my_schedules":
                 return outcome(name, run_id=run_id, data={"start_date": "2030-01-07", "end_date": "2030-01-07",
                     "timezone": "Asia/Shanghai", "items": [], "truncated": False})
@@ -138,6 +144,8 @@ class World:
                     self.actors[name] = actor
                     self.payloads[name] = decode_access_token(create_access_token(actor.id, 0, self.campus), self.campus)
                 await db.commit()
+                from support.synthetic_access import enroll
+                await enroll(db, self.actors.values())
         self.run(action)
 
     async def conversation(self, database, name="a"):
@@ -362,7 +370,7 @@ def test_executor_persists_successful_turns_and_runs_read_tools_concurrently(wor
     async def action(database, cache):
         conversation = await world.conversation(database)
         queued = await world.submit(database, cache, conversation, content="First synthetic question")
-        tools = MemoryTools()
+        tools = MemoryTools(synchronize=True)
         first_provider = MockProvider([
             ModelReply("", [ToolRequest("call_one", "campus_get_my_schedules", {}),
                             ToolRequest("call_two", "campus_list_notices", {})], USAGE),

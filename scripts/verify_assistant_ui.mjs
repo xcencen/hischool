@@ -63,7 +63,7 @@ function world(name) {
     { source_id: 'S1', kind: 'notice', item_id: 1, title: '合成旧通知', url: '/app/notices/1' }]
   const value = { name, conversations: [conversation(first, '合成会话甲'), conversation(second, '合成会话乙')],
     messages: new Map([[first, history], [second, [message(1, 'user', '会话乙问题'), message(2, 'assistant', '会话乙历史回答')]]]),
-    runs: new Map(), posts: [], subscriptions: [], cancellations: 0, closed: 0, staleHistoryDelivered: false }
+    access: { eligible: name !== 'ineligible', consented: !['consent', 'policy-change', 'consent-session'].includes(name), can_run: !['ineligible', 'consent', 'policy-change', 'consent-session', 'disabled'].includes(name), generation: 1, policy: { version: 'synthetic-v1', title: '合成告知', text: '仅用于无云验收的合成告知，不包含真实校园数据。' } }, consentPosts: [], runs: new Map(), posts: [], subscriptions: [], cancellations: 0, closed: 0, staleHistoryDelivered: false }
   worlds.set(name, value)
   return value
 }
@@ -133,7 +133,7 @@ function subscribe(value, run, response, url) {
     later(() => { frame('error', { reason: 'expired' }); response.end() }, 700)
     return
   }
-  if (value.name === 'cancel' || value.name === 'logout' || value.name === 'session-expired' || value.name === 'http-cancel-deleted'
+  if (value.name === 'cancel' || value.name === 'withdraw-running' || value.name === 'logout' || value.name === 'session-expired' || value.name === 'http-cancel-deleted'
       || (value.name === 'cancel-success' && attempt === 1)) {
     const check = () => {
       if (response.destroyed) return
@@ -180,7 +180,44 @@ const server = http.createServer(async (request, response) => {
     const method = request.method
     const pathname = url.pathname
     if (pathname === '/api/user/me') return envelope(response, { id: 1, username: 'synthetic', name: '合成学生',
-      role: 'student', email: null, phone: null, avatar: null, status: 1 })
+      role: value.name.startsWith('admin-') ? 'admin' : 'student', email: null, phone: null, avatar: null, status: 1 })
+    if (pathname === '/api/admin/assistant/access') {
+      if (value.name === 'admin-denied') return envelope(response, null, 403)
+      return envelope(response, pageList([{ user_id: 1, username: 'synthetic', name: '合成学生', eligible: value.access.eligible, generation: value.access.generation }], url))
+    }
+    if (pathname === '/api/admin/assistant/access/1' && method === 'PUT') {
+      const data = await body(request)
+      assert.deepEqual(Object.keys(data).sort(), ['eligible', 'expected_generation'])
+      assert.equal(data.expected_generation, value.access.generation)
+      if (value.name === 'admin-conflict' && !value.conflicted) { value.conflicted = true; value.access.generation++; return envelope(response, null, 409) }
+      value.access.eligible = data.eligible; value.access.generation++
+      return envelope(response, { user_id: 1, username: 'synthetic', name: '合成学生', eligible: value.access.eligible, generation: value.access.generation })
+    }
+    if (pathname === '/api/admin/assistant/operations') {
+      if (value.name === 'admin-denied') return envelope(response, null, 403)
+      return envelope(response, { checked_at: now, status: 'warning', warning_after_s: 60, warnings: ['model_usage_unknown'], queued: { count: 0, oldest_age_s: null, overdue_count: 0, oldest_overdue_s: null }, expired_leases: { count: 0, oldest_age_s: null }, terminal_reserved: { count: 0, oldest_age_s: null }, failed_reasons: [{ reason: 'usage_unknown', count: 1 }], costs: { model_unknown_count: 1, model_unknown_charged: '0.10', embedding_conservative_count: 1, embedding_conservative_charged: '0.0001', currency: 'CNY' }, cleanup: { count: 0, oldest_age_s: null } })
+    }
+    if (pathname === '/api/assistant/access') {
+      if (value.name === 'access-error') return envelope(response, null, 503)
+      return envelope(response, value.access)
+    }
+    if (pathname === '/api/assistant/consent') {
+      if (method === 'POST') {
+        const data = await body(request); value.consentPosts.push(data)
+        assert.deepEqual(Object.keys(data), ['policy_version'])
+        if (value.name === 'policy-change' && value.consentPosts.length === 1) {
+          value.access.policy.version = 'synthetic-v2'; return envelope(response, null, 409)
+        }
+        assert.equal(data.policy_version, value.access.policy.version)
+        value.access.consented = true; value.access.can_run = value.access.eligible
+      } else { value.access.consented = false; value.access.can_run = false }
+      if (value.name === 'consent-session' && method === 'POST') {
+        const snapshot = structuredClone(value.access)
+        later(() => { if (!response.destroyed) envelope(response, snapshot) }, 900)
+        return
+      }
+      return envelope(response, value.access)
+    }
     if (pathname === '/api/auth/logout') return envelope(response, null)
     if (pathname === '/api/assistant/alerts') return envelope(response, pageList((value.name === 'alerts' || (value.name === 'alert-denial' && value.posts.length)) ? [{
       id: 1, day: '2026-10-31', scope: 'user', kind: 'threshold', amount: '0.8', cap: '1',
@@ -220,6 +257,10 @@ const server = http.createServer(async (request, response) => {
         const data = await body(request)
         assert.deepEqual(Object.keys(data).sort(), ['content', 'request_key'])
         value.posts.push({ ...data, conversationId: item.id })
+        if (value.name === 'send-forbidden') {
+          value.access.eligible = false; value.access.can_run = false; value.access.generation++
+          return envelope(response, null, 403)
+        }
         if (value.name === 'http-expired') return envelope(response, null, 410)
         const run = createRun(value, item.id, data)
         if (value.name === 'alert-denial') {
@@ -302,6 +343,82 @@ try {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve) })
   browser = await chromium.launch({ headless: true, ...(options.browser ? { executablePath: options.browser } : {}),
     downloadsPath: path.join(output, 'downloads') })
+  for (const name of ['ineligible', 'access-error']) await fixture(name, async (page, value) => {
+    assert(await page.getByRole('textbox', { name: '发送消息', exact: true }).isDisabled(), 'Access must fail closed')
+    assert.equal(await bodyText(page).count(), 2, 'History remains readable')
+    assert.equal(value.posts.length, 0)
+    assert.equal(await page.evaluate(() => localStorage.getItem('campus_token')), `synthetic-${name}`)
+  })
+  for (const name of ['consent', 'policy-change']) await fixture(name, async (page, value) => {
+    assert(await page.getByRole('textbox', { name: '发送消息', exact: true }).isDisabled())
+    const confirm = page.getByRole('button', { name: '确认告知', exact: true })
+    assert(await confirm.isDisabled(), 'Explicit checkbox required')
+    const checkbox = page.getByRole('checkbox', { name: '我已阅读并同意当前告知' })
+    await checkbox.focus(); await page.keyboard.press('Space')
+    await confirm.focus(); await page.keyboard.press('Enter')
+    if (name === 'policy-change') {
+      await page.getByText('synthetic-v2', { exact: true }).waitFor()
+      assert(await confirm.isDisabled(), 'Policy change requires new explicit confirmation')
+      await checkbox.check(); await confirm.click()
+    }
+    await page.waitForFunction(() => !document.querySelector('#assistant-input').disabled)
+    await page.getByRole('button', { name: '撤回确认', exact: true }).click()
+    await checkbox.waitFor()
+    assert(await page.getByRole('textbox', { name: '发送消息', exact: true }).isDisabled())
+    await checkbox.check(); await confirm.click()
+    await page.waitForFunction(() => !document.querySelector('#assistant-input').disabled)
+    assert.equal(value.posts.length, 0, 'Consent never sends model work')
+  })
+  for (const name of ['admin-access', 'admin-conflict', 'admin-denied']) await fixture(name, async (page, value) => {
+    await page.getByRole('link', { name: '助手管理', exact: true }).click()
+    await page.getByRole('heading', { name: '助手管理', exact: true }).waitFor()
+    if (name === 'admin-denied') {
+      await page.getByRole('alert').filter({ hasText: '合成界面验收' }).first().waitFor()
+      assert.equal(await page.evaluate(() => localStorage.getItem('campus_token')), `synthetic-${name}`)
+      assert.equal(await page.getByRole('button', { name: '撤销资格', exact: true }).count(), 0)
+      return
+    }
+    await page.getByText('模型未知用量', { exact: true }).waitFor()
+    await page.getByRole('button', { name: '撤销资格', exact: true }).click()
+    if (name === 'admin-conflict') {
+      await page.getByRole('alert').filter({ hasText: '合成界面验收' }).first().waitFor()
+      await page.getByRole('button', { name: '撤销资格', exact: true }).click()
+    }
+    await page.getByRole('button', { name: '授予资格', exact: true }).waitFor()
+    assert.equal(value.access.eligible, false)
+  })
+  await fixture('send-forbidden', async (page, value) => {
+    await send(page)
+    await page.getByText('当前账号未获助手使用资格。仍可查看历史、取消运行或删除会话。', { exact: true }).waitFor()
+    assert(await page.getByRole('textbox', { name: '发送消息', exact: true }).isDisabled())
+    assert.equal(await bodyText(page).count(), 2)
+    assert.equal(value.posts.length, 1)
+    assert.equal(await page.evaluate(() => localStorage.getItem('campus_token')), 'synthetic-send-forbidden')
+  })
+  await fixture('withdraw-running', async (page, value) => {
+    await send(page)
+    await page.getByRole('button', { name: '撤回确认', exact: true }).click()
+    await page.getByRole('checkbox', { name: '我已阅读并同意当前告知' }).waitFor()
+    assert(await page.getByRole('textbox', { name: '发送消息', exact: true }).isDisabled())
+    await page.getByRole('button', { name: '停止运行', exact: true }).click()
+    await page.getByText('运行已取消。', { exact: true }).waitFor()
+    assert.equal(value.cancellations, 1)
+    assert.equal(value.posts.length, 1)
+    assert(await bodyText(page).filter({ hasText: '合成历史回答' }).count())
+  })
+  await fixture('consent-session', async (page) => {
+    await page.getByRole('checkbox', { name: '我已阅读并同意当前告知' }).check()
+    await page.getByRole('button', { name: '确认告知', exact: true }).click()
+    await page.evaluate(() => {
+      localStorage.setItem('campus_token', 'synthetic-other-user')
+      window.dispatchEvent(new StorageEvent('storage', { key: 'campus_token', newValue: 'synthetic-other-user' }))
+    })
+    await page.waitForTimeout(1300)
+    assert.equal(await bodyText(page).count(), 0, 'Identity switch clears history')
+    assert.equal(await page.getByRole('button', { name: '撤回确认', exact: true }).count(), 0, 'Late confirmation cannot restore old access')
+    assert.equal(new URL(page.url()).pathname, '/app', 'Existing app identity guard leaves the assistant')
+    assert.equal(await page.getByRole('textbox', { name: '发送消息', exact: true }).count(), 0)
+  })
   await fixture('stream', async (page, value) => {
     await send(page)
     await page.getByText('正在接收已完成的回复', { exact: true }).waitFor()

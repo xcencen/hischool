@@ -29,7 +29,7 @@ PROJECT = "my-campus-ai-m5-release"
 
 
 def guarded_url(target):
-    if os.environ.get("M5_RELEASE_PROJECT") != PROJECT:
+    if os.environ.get("M5_RELEASE_PROJECT") not in (PROJECT, "my-campus-ai-m6-release"):
         raise ValueError("Explicit isolated release guard required")
     variable = "CAMPUS_DATABASE_URL" if target == "source" else "CAMPUS_CHECKPOINT_TEST_DATABASE_URL"
     value = os.environ[variable]
@@ -185,6 +185,11 @@ def main():
         after = asyncio.run(snapshot("source"))
         assert after["versions"] == ["0006_assistant"]
         assert all(after["tables"][name] == data for name, data in before["tables"].items() if name != "alembic_version")
+        migrate("0007_assistant_access")
+        final = asyncio.run(snapshot("source"))
+        assert final["versions"] == ["0007_assistant_access"]
+        assert all(final["tables"][name] == data for name, data in after["tables"].items() if name != "alembic_version")
+        after = final
         subprocess.run([sys.executable, "-B", "-m", "alembic", "check"], check=True,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         result = after

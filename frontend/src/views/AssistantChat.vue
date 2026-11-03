@@ -9,7 +9,7 @@ import { runReason, useAssistantChat } from '../composables/useAssistantChat'
 const chat = useAssistantChat()
 const { conversations, conversationTotal, selected, budget, messages, activeRun, input, partial, loading,
   loadingMessages, loadingOlder, submitting, changing, cancelling, error, sendError, streamError, budgetError,
-  connection, pending, running, ready, canSend, canLoadOlder, statusText } = chat
+  access, accessError, accessLoading, consentChecked, connection, pending, running, ready, canSend, canLoadOlder, statusText } = chat
 const messageList = ref<InstanceType<typeof AssistantMessages> | null>(null)
 const receiving = computed(() => ['connecting', 'waiting', 'receiving', 'reconnecting'].includes(connection.value))
 const composerHint = computed(() => !selected.value ? '请先新建或选择会话。' : selected.value.state !== 'active'
@@ -35,9 +35,24 @@ async function removeConversation() {
 <template>
   <section class="assistant-page">
     <div class="campus-page-heading campus-heading-with-action"><div><p class="campus-eyebrow">CAMPUS ASSISTANT</p><h1>校园助手</h1><p>连接校园信息，在同一会话里继续提问。</p></div><el-button :loading="loading" :disabled="submitting || changing" @click="chat.reload">刷新状态</el-button></div>
+    <section class="assistant-access" aria-label="助手使用资格与告知">
+      <p v-if="accessLoading" role="status">正在核对助手使用资格…</p>
+      <p v-if="accessError" role="alert">使用资格暂不可用：{{ accessError }}</p>
+      <p v-if="access && !access.eligible">当前账号未获助手使用资格。仍可查看历史、取消运行或删除会话。</p>
+      <template v-if="access?.policy">
+        <h2>{{ access.policy.title }}</h2><p>告知版本：<span>{{ access.policy.version }}</span></p>
+        <p class="assistant-policy-text">{{ access.policy.text }}</p>
+        <template v-if="access.eligible && !access.consented">
+          <label><input v-model="consentChecked" type="checkbox"> 我已阅读并同意当前告知</label>
+          <button type="button" :disabled="!consentChecked || accessLoading" @click="chat.refreshAccess('confirm')">确认告知</button>
+        </template>
+        <p v-if="access.consented">已确认当前告知。<button type="button" :disabled="accessLoading" @click="chat.refreshAccess('withdraw')">撤回确认</button></p>
+      </template>
+      <p v-else-if="access">尚未发布告知，暂不能发送问题。</p>
+    </section>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="assistant-page-alert" />
     <el-alert v-if="budgetError" :title="`助手状态暂不可用：${budgetError}`" type="warning" show-icon :closable="false" class="assistant-page-alert" />
-    <el-alert v-else-if="budget && !ready" title="助手尚未启用：当前可以管理历史会话，暂不能发送问题。校园数据外发保持关闭。" type="info" show-icon :closable="false" class="assistant-page-alert" />
+    <el-alert v-else-if="budget && (!budget.policy.enabled || !budget.policy.allow_campus_data)" title="助手尚未启用：当前可以管理历史会话，暂不能发送问题。校园数据外发保持关闭。" type="info" show-icon :closable="false" class="assistant-page-alert" />
     <AssistantAlerts :alerts="chat.alerts.value" :total="chat.alertTotal.value" :loading="chat.alertsLoading.value" :error="chat.alertsError.value" :pending="chat.alertPending.value" @ack="chat.acknowledgeAlert" @more="chat.refreshAlerts(true)" @refresh="chat.refreshAlerts()" />
     <div class="assistant-workspace">
       <aside class="assistant-conversations" aria-label="会话列表">
@@ -49,7 +64,7 @@ async function removeConversation() {
       <section class="assistant-chat" aria-label="助手对话">
         <header class="assistant-chat-header"><div><h2>{{ selected?.title || '选择一段对话' }}</h2><p>{{ selected ? stateLabel(selected.state) : '新建会话后开始' }}<template v-if="activeRun"> · 本次估算 ¥ {{ amount(activeRun.spent) }}</template></p></div><div v-if="selected" class="assistant-conversation-actions"><el-button v-if="selected.state === 'active' || selected.state === 'archived'" text size="small" :disabled="running || receiving || submitting || changing || Boolean(pending)" @click="chat.changeConversation()">{{ selected.state === 'archived' ? '恢复会话' : '归档' }}</el-button><el-button text type="danger" size="small" :disabled="running || receiving || submitting || changing || Boolean(pending)" @click="removeConversation">删除</el-button></div></header>
         <AssistantMessages ref="messageList" :conversation-id="selected?.id ?? null" :messages="messages" :partial="partial" :loading="loadingMessages" :loading-older="loadingOlder" :can-load-older="canLoadOlder" :status="statusText" @older="chat.loadOlder" />
-        <div v-if="streamError || sendError || (activeRun && ['failed', 'cancelled', 'expired'].includes(activeRun.status))" class="assistant-feedback" role="status"><p v-if="sendError">{{ sendError }}</p><p v-if="pending">提交结果尚未确认。请使用原请求确认，避免重复发送。</p><el-button v-if="pending" size="small" :loading="submitting" @click="chat.submit(true)">确认原提交结果</el-button><p v-if="streamError">{{ streamError }}</p><el-button v-if="connection === 'interrupted' && activeRun" size="small" @click="chat.reconnectRun">重新连接原运行</el-button><p v-if="activeRun && ['failed', 'cancelled', 'expired'].includes(activeRun.status)">{{ runReason(activeRun.reason) }}</p></div>
+        <div v-if="streamError || sendError || (activeRun && ['failed', 'cancelled', 'expired'].includes(activeRun.status))" class="assistant-feedback" role="status"><p v-if="sendError">{{ sendError }}</p><p v-if="pending">提交结果尚未确认。请使用原请求确认，避免重复发送。</p><el-button v-if="pending" size="small" :loading="submitting" :disabled="!ready" @click="chat.submit(true)">确认原提交结果</el-button><p v-if="streamError">{{ streamError }}</p><el-button v-if="connection === 'interrupted' && activeRun" size="small" @click="chat.reconnectRun">重新连接原运行</el-button><p v-if="activeRun && ['failed', 'cancelled', 'expired'].includes(activeRun.status)">{{ runReason(activeRun.reason) }}</p></div>
         <AssistantComposer v-model="input" :disabled="!selected || selected.state !== 'active' || !ready || submitting || loadingMessages || Boolean(pending)" :can-send="canSend" :submitting="submitting" :running="running" :cancelling="cancelling" :hint="composerHint" @send="send" @stop="chat.cancel" />
       </section>
     </div>
@@ -57,6 +72,7 @@ async function removeConversation() {
 </template>
 
 <style scoped>
+.assistant-access { margin-bottom: 16px; padding: 16px; border: 1px solid #e5eaf4; border-radius: 12px; background: #fff; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }.assistant-access h2 { font-size: 15px; }.assistant-access button { margin-left: 12px; padding: 6px 12px; cursor: pointer; }.assistant-access button:disabled { cursor: default; }.assistant-policy-text { white-space: pre-wrap; }
 .assistant-page { max-width: 1350px; }.assistant-page-alert { margin-bottom: 16px; }.assistant-workspace { display: grid; grid-template-columns: 215px minmax(0, 1fr); min-height: 570px; height: min(750px, 76vh); border: 1px solid #e5eaf4; border-radius: 15px; background: #fff; overflow: hidden; box-shadow: 0 5px 25px #1c315f04; }.assistant-conversations { display: flex; flex-direction: column; min-height: 0; background: #fafbfe; border-right: 1px solid #e9edf5; padding: 22px 14px 17px; }.assistant-conversations-heading { display: flex; align-items: center; justify-content: space-between; gap: 9px; }.assistant-conversations-heading h2 { font-size: 14px; margin: 0; color: #40536e; }.assistant-sidebar-caption { color: #9aa7b8; font-size: 11px; margin: 13px 0 15px; }.assistant-conversation-list { min-height: 100px; overflow-y: auto; flex: 1; padding-bottom: 14px; }.assistant-conversation { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 13px 12px; text-align: left; border: 1px solid transparent; border-radius: 9px; background: none; cursor: pointer; margin-bottom: 5px; font: inherit; }.assistant-conversation:hover { background: #f0f3fb; }.assistant-conversation.selected { background: #edf0ff; border-color: #e0e5fb; }.assistant-conversation-title { color: #53657f; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }.assistant-conversation-meta { font-size: 10px; color: #9aa5b7; }.assistant-sidebar-empty { font-size: 12px; color: #99a6b8; line-height: 2; margin-top: 30px; text-align: center; }.assistant-budget { font-size: 11px; border-top: 1px solid #e8edf5; color: #96a3b6; padding: 17px 8px 0; }.assistant-budget strong { font-weight: 500; color: #7c8aa0; }.assistant-budget dl { margin: 15px 0; }.assistant-budget dl div { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 9px; }.assistant-budget dt, .assistant-budget dd { margin: 0; }.assistant-budget dd { color: #667b98; font-variant-numeric: tabular-nums; }.assistant-budget p { margin: 0; line-height: 1.9; }
 .assistant-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }.assistant-chat-header { padding: 19px 24px; border-bottom: 1px solid #edf0f6; display: flex; justify-content: space-between; align-items: center; gap: 12px; }.assistant-chat-header h2 { font-size: 15px; color: #3f536f; margin: 0 0 6px; overflow-wrap: anywhere; }.assistant-chat-header p { margin: 0; color: #9ba6b7; font-size: 11px; }.assistant-conversation-actions { flex-shrink: 0; display: flex; gap: 1px; }.assistant-feedback { padding: 10px 23px; background: #fffbf3; color: #9c7a42; border-top: 1px solid #f1e8d8; font-size: 12px; line-height: 1.7; }.assistant-feedback p { margin: 3px 0; }.assistant-feedback .el-button { margin: 5px 0; }
 @media (max-width: 1060px) { .assistant-workspace { grid-template-columns: 180px minmax(0, 1fr); }.assistant-conversations { padding-right: 10px; padding-left: 10px; } }

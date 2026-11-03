@@ -158,6 +158,10 @@ if __name__ == "__main__":
             await db.execute(update(Schedule).where(Schedule.course_id.in_(world.courses)).values(
                 class_date=(datetime.now(UTC) + timedelta(hours=8)).date()))
             await db.commit()
+            from support.synthetic_access import enroll
+            from sqlalchemy import select
+            actors = list((await db.scalars(select(User).where(User.id.in_(world.users.values())))).all())
+            await enroll(db, actors)
     world.run(prepare)
     cases = json.loads((Path(__file__).resolve().parents[1] / "fixtures/assistant_cases.json").read_text(encoding="utf-8"))
     asyncio.run(run(world, folder, cases))

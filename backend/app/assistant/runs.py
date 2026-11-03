@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from sqlalchemy import func, select
 
-from app.assistant import budget, conversations
+from app.assistant import access, budget, conversations
 from app.common.exceptions import BusinessException
 from app.database import utc_now
 from app.infra.redis import RedisUnavailable, rate_limit
@@ -79,6 +79,7 @@ async def create_run(db, redis, actor, token_payload, conversation_public_id, co
     await conversations.lock_control(db, actor)
     await active_identity(db, redis, user_id=actor.id, auth_version=token_payload["auth_version"],
         session_jti=token_payload["jti"], expires_at=token_payload["exp"], current_read=True)
+    policy, grant = await access.require_access(db, actor.id)
     conversation = await conversations.get_conversation(db, actor, conversation_public_id, for_update=True)
     digest = hashlib.sha256(json.dumps([content, parent_public_id], ensure_ascii=False).encode()).hexdigest()
     existing = await db.scalar(select(AssistantRun).where(AssistantRun.conversation_id == conversation.id,
@@ -118,6 +119,7 @@ async def create_run(db, redis, actor, token_payload, conversation_public_id, co
         model_calls=0, tool_calls=0, cancel_requested=False)
     db.add(row)
     await db.flush()
+    await access.bind_run(db, row, policy, grant)
     db.add(AssistantMessage(conversation_id=conversation.id, run_id=row.id, sequence=conversation.next_seq,
         role="user", content=content, citations=[]))
     conversation.next_seq += 1
@@ -212,8 +214,9 @@ async def claim_next(database, redis, settings):
             try:
                 await active_identity(db, redis, user_id=row.owner_id, auth_version=row.auth_version,
                     session_jti=row.source_jti, expires_at=row.source_exp, current_read=True)
+                await access.require_run(db, row)
             except BusinessException as error:
-                reason = "unauthenticated" if error.code == 401 else "unavailable"
+                reason = "unauthenticated" if error.code == 401 else "access_revoked" if error.code == 403 else "unavailable"
         if reason:
             await _finish(db, row, conversation, "expired" if reason == "queue_expired" else "failed", reason)
             await db.commit()
@@ -235,8 +238,9 @@ async def guard(database, redis, public_id, lease_token, settings):
         try:
             await active_identity(db, redis, user_id=row.owner_id, auth_version=row.auth_version,
                 session_jti=row.source_jti, expires_at=row.source_exp, current_read=True)
+            await access.require_run(db, row)
         except BusinessException as error:
-            raise RunStopped("unauthenticated" if error.code == 401 else "unavailable") from None
+            raise RunStopped("unauthenticated" if error.code == 401 else "access_revoked" if error.code == 403 else "unavailable") from None
         row.lease_until = utc_now() + timedelta(seconds=settings.lease_s)
         await db.commit()
 
@@ -278,9 +282,10 @@ async def finish(database, public_id, lease_token, *, status, reason=None, text=
                 try:
                     await active_identity(db, redis, user_id=row.owner_id, auth_version=row.auth_version,
                         session_jti=row.source_jti, expires_at=row.source_exp, current_read=True)
+                    await access.require_run(db, row)
                 except BusinessException as error:
                     status = "failed"
-                    reason = "unauthenticated" if error.code == 401 else "unavailable"
+                    reason = "unauthenticated" if error.code == 401 else "access_revoked" if error.code == 403 else "unavailable"
                     text = citations = None
         await _finish(db, row, conversation, status, reason, text=text, citations=citations)
         await db.commit()

@@ -18,6 +18,7 @@ from app.models.notice import Notice, NoticeCategory  # noqa: F401
 from app.models.activity import Activity, ActivityRegistration  # noqa: F401
 from app.models.knowledge import KnowledgeDocument, KnowledgeVersion, KnowledgePage, KnowledgeChunk, KnowledgeIndex, KnowledgeState  # noqa: F401
 from app.models.assistant import Conversation, AssistantRun, AssistantMessage, AssistantUsage, AssistantBudget, AssistantAlert, AssistantControl  # noqa: F401
+from app.models.assistant_access import AssistantPolicy, AssistantAccess, AssistantConsent, AssistantRunAccess  # noqa: F401
 
 
 config = context.config

@@ -130,3 +130,24 @@ export async function subscribeRun(id: string, onEvent: (event: AssistantEvent) 
     reader?.releaseLock()
   }
 }
+
+export interface AssistantAccess {
+  eligible: boolean; consented: boolean; can_run: boolean; generation: number
+  policy: { version: string; title: string; text: string } | null
+}
+export interface AssistantAccessUser { user_id: number; username: string; name: string; eligible: boolean; generation: number }
+export const assistantAccessApi = (signal?: AbortSignal) => request<AssistantAccess>({ url: '/assistant/access', signal })
+export const consentApi = (policy_version: string, signal?: AbortSignal) => request<AssistantAccess>({ method: 'POST', url: '/assistant/consent', data: { policy_version }, signal })
+export const withdrawConsentApi = (signal?: AbortSignal) => request<AssistantAccess>({ method: 'DELETE', url: '/assistant/consent', signal })
+export const adminAssistantAccessApi = (page = 1, signal?: AbortSignal) => request<AssistantPage<AssistantAccessUser>>({ url: '/admin/assistant/access', params: { page, page_size: 20 }, signal })
+export const setAssistantAccessApi = (item: AssistantAccessUser, signal?: AbortSignal) => request<AssistantAccessUser>({ method: 'PUT', url: `/admin/assistant/access/${item.user_id}`, data: { eligible: !item.eligible, expected_generation: item.generation }, signal })
+export interface AssistantOperations {
+  checked_at: string; status: 'ok' | 'warning'; warning_after_s: number; warnings: string[]
+  queued: { count: number; oldest_age_s: number | null; overdue_count: number; oldest_overdue_s: number | null }
+  expired_leases: { count: number; oldest_age_s: number | null }
+  terminal_reserved: { count: number; oldest_age_s: number | null }
+  failed_reasons: { reason: string; count: number }[]
+  costs: { model_unknown_count: number; model_unknown_charged: string; embedding_conservative_count: number; embedding_conservative_charged: string; currency: 'CNY' }
+  cleanup: { count: number; oldest_age_s: number | null }
+}
+export const assistantOperationsApi = (signal?: AbortSignal) => request<AssistantOperations>({ url: '/admin/assistant/operations', signal })

@@ -4,8 +4,8 @@ import { token } from '../utils/campus-auth'
 import { readToken } from '../utils/session-storage'
 import { assistantBudgetApi, cancelRunApi, conversationApi, conversationsApi, createConversationApi,
   createRunApi, deleteConversationApi, getRunApi, messagesApi, subscribeRun, updateConversationApi } from '../api/assistant'
-import { assistantAlertsApi, acknowledgeAlertApi } from '../api/assistant'
-import type { AssistantAlert, AssistantBudget, AssistantMessage, AssistantRun, Conversation } from '../api/assistant'
+import { assistantAccessApi, consentApi, withdrawConsentApi, assistantAlertsApi, acknowledgeAlertApi } from '../api/assistant'
+import type { AssistantAccess, AssistantAlert, AssistantBudget, AssistantMessage, AssistantRun, Conversation } from '../api/assistant'
 
 export const terminalRun = (run: AssistantRun | null) => !run || ['succeeded', 'failed', 'cancelled', 'expired'].includes(run.status)
 export function runReason(reason: string | null): string {
@@ -24,6 +24,11 @@ export function useAssistantChat() {
   const conversations = ref<Conversation[]>([])
   const conversationTotal = ref(0)
   const selected = ref<Conversation | null>(null)
+  const access = ref<AssistantAccess | null>(null)
+  const accessError = ref('')
+  const accessLoading = ref(false)
+  const consentChecked = ref(false)
+  let accessGeneration = 0
   const budget = ref<AssistantBudget | null>(null)
   const alerts = ref<AssistantAlert[]>([])
   const alertTotal = ref(0)
@@ -60,7 +65,7 @@ export function useAssistantChat() {
   const sessionToken = token.value
 
   const running = computed(() => !terminalRun(activeRun.value))
-  const ready = computed(() => Boolean(budget.value?.policy.enabled && budget.value.policy.allow_campus_data))
+  const ready = computed(() => Boolean(access.value?.can_run && !accessLoading.value && budget.value?.policy.enabled && budget.value.policy.allow_campus_data))
   const canSend = computed(() => ready.value && selected.value?.state === 'active' && !running.value
     && !submitting.value && !loadingMessages.value && !changing.value && !pending.value
     && !['connecting', 'waiting', 'receiving', 'reconnecting'].includes(connection.value) && Boolean(input.value.trim()))
@@ -136,6 +141,28 @@ export function useAssistantChat() {
       alertsError.value = ''
     } catch (cause) { if (sameSession()) alertsError.value = errorMessage(cause) }
     finally { if (sameSession()) alertPending.value = null }
+  }
+  async function refreshAccess(action?: 'confirm' | 'withdraw') {
+    if (!sameSession() || (action && accessLoading.value)) return
+    const version = access.value?.policy?.version
+    if (action === 'confirm' && (!consentChecked.value || !version || !access.value?.eligible)) return
+    const generation = ++accessGeneration
+    accessLoading.value = true; accessError.value = ''; consentChecked.value = false
+    access.value = null
+    try {
+      const data = action === 'confirm' ? await consentApi(version!, lifetime.signal)
+        : action === 'withdraw' ? await withdrawConsentApi(lifetime.signal) : await assistantAccessApi(lifetime.signal)
+      if (!sameSession() || generation !== accessGeneration) return
+      access.value = data
+    } catch (cause) {
+      if (!sameSession() || generation !== accessGeneration) return
+      accessError.value = errorMessage(cause)
+      if (cause instanceof ApiError && cause.status === 409) {
+        accessLoading.value = false
+        await refreshAccess()
+        if (sameSession()) accessError.value = '告知版本已变化，请阅读并重新确认。'
+      }
+    } finally { if (sameSession() && generation === accessGeneration) accessLoading.value = false }
   }
   async function refreshBudget() {
     void refreshAlerts()
@@ -248,7 +275,7 @@ export function useAssistantChat() {
     loading.value = true; error.value = ''
     const sequence = selection
     try {
-      const [data] = await Promise.all([conversationsApi(1, lifetime.signal), refreshBudget()])
+      const [data] = await Promise.all([conversationsApi(1, lifetime.signal), refreshBudget(), refreshAccess()])
       if (!current(sequence)) return
       conversations.value = data.list; conversationTotal.value = data.total; listPage = 1
       if (selected.value) await selectConversation(selected.value.id)
@@ -300,7 +327,7 @@ export function useAssistantChat() {
     finally { if (current(sequence)) changing.value = false }
   }
   async function submit(recover = false) {
-    if (submitting.value || !selected.value || (!recover && !canSend.value)) return
+    if (!ready.value || submitting.value || !selected.value || (!recover && !canSend.value)) return
     const sequence = selection
     const id = selected.value.id
     const payload = recover ? pending.value : { conversationId: id, content: input.value.trim(), key: crypto.randomUUID().replace(/-/g, '') }
@@ -322,6 +349,7 @@ export function useAssistantChat() {
       const ambiguous = !(cause instanceof ApiError) || cause.status === 0 || cause.status >= 500
       if (!ambiguous) pending.value = null
       sendError.value = errorMessage(cause)
+      if (cause instanceof ApiError && [403, 409].includes(cause.status)) { access.value = null; void refreshAccess() }
     } finally { if (current(sequence)) submitting.value = false }
   }
   async function cancel() {
@@ -341,13 +369,14 @@ export function useAssistantChat() {
   function reconnectRun() { if (activeRun.value) void connectRun(activeRun.value) }
 
   watch(token, () => {
+    ++accessGeneration; access.value = null; accessError.value = ''; consentChecked.value = false; accessLoading.value = false
     lifetime.abort(); resetSelection(); conversations.value = []; budget.value = null
     ++alertGeneration; alerts.value = []; alertTotal.value = 0; acknowledged.clear(); alertPending.value = null; alertsError.value = ''; alertsLoading.value = false
     error.value = '登录状态已变化，请重新进入助手页面。'
   })
   onMounted(reload)
   onBeforeUnmount(() => { alive = false; resetSelection(); lifetime.abort() })
-  return { conversations, conversationTotal, selected, budget, messages, activeRun, input, partial,
+  return { access, accessError, accessLoading, consentChecked, refreshAccess, conversations, conversationTotal, selected, budget, messages, activeRun, input, partial,
     alerts, alertTotal, alertsLoading, alertsError, alertPending, refreshAlerts, acknowledgeAlert,
     loading, loadingMessages, loadingOlder, submitting, changing, cancelling, error, sendError, streamError,
     budgetError, connection, pending, running, ready, canSend, canLoadOlder, statusText, reload, refreshBudget,

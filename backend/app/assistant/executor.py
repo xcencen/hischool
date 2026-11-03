@@ -17,9 +17,10 @@ from sqlalchemy import select
 
 from app.ai.pricing import compute_cost
 from app.ai.settings import MODEL_ID
-from app.assistant import budget, conversations, runs
+from app.assistant import access, budget, conversations, runs
 from app.assistant.graph import execute_graph
 from app.assistant.providers import ProviderFailure
+from app.common.exceptions import BusinessException
 from app.models.assistant import AssistantMessage, AssistantUsage, Conversation
 from app.utils.jwt import AUDIENCE, ISSUER
 
@@ -42,6 +43,10 @@ class RunExecutor:
         async with self.database.session_factory() as db:
             row, _ = await runs._locked(db, self.public_id)
             runs.check_lease(row, self.lease_token)
+            try:
+                await access.require_run(db, row)
+            except BusinessException:
+                raise runs.RunStopped("access_revoked") from None
             field = "model_calls" if kind == "model" else "tool_calls"
             maximum = self.settings.max_model_calls if kind == "model" else self.settings.max_tool_calls
             count = getattr(row, field)
