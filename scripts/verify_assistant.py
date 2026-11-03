@@ -123,6 +123,7 @@ def main():
         report['images']['e2e_container'] = run('e2e-image',[args.docker,'container','inspect','--format','{{.Image}}',e2e_project+'-api-1']).decode().strip()
         origin = f'http://127.0.0.1:{args.proxy_port}'
         run('e2e',[args.node,'scripts/verify_assistant_e2e.mjs','--artifacts',str(output/'e2e'),'--playwright',playwright,'--browser',args.browser,'--origin',origin])
+        run('access-e2e',[args.node,'scripts/verify_assistant_access_e2e.mjs','--artifacts',str(output/'e2e'),'--origin',origin])
         run('operations',[args.node,'scripts/verify_assistant_operations.mjs','--artifacts',str(output/'e2e'),'--project',e2e_project,'--docker',args.docker,'--origin',origin])
         run('release',[sys.executable,'scripts/rehearse_assistant_release.py','--source',str(source),'--docker',args.docker,'--output',str(output/'release'),'--old-image',args.old_image,'--test-image',args.test_image])
         run('release-compose',[sys.executable,'scripts/rehearse_assistant_compose.py','--output',str(output/'release-compose'),'--docker',args.docker,'--image-project',args.project])

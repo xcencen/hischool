@@ -15,7 +15,7 @@ SERVICES = ('mysql', 'redis', 'api', 'worker', 'assistant-worker', 'campus-mcp',
 MATERIALS = ('accounts', 'notice', 'outbound_fields', 'prices_quotas', 'retention', 'window', 'responsible', 'backup_restore', 'verification')
 REQUIRED_STAGES = {'backend', 'script-tests', 'health-tests', 'type-check', 'build', 'sse', 'ui',
     'build-backend', 'build-assistant', 'build-frontend', 'check-backend', 'check-assistant', 'check-frontend',
-    'e2e', 'operations', 'release', 'release-compose', 'cleanup-0', 'cleanup-1'}
+    'e2e', 'access-e2e', 'operations', 'release', 'release-compose', 'cleanup-0', 'cleanup-1'}
 
 
 def verification_report(data, base):

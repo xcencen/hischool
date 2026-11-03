@@ -24,7 +24,8 @@ async def inspect_state():
             conversation = await db.scalar(select(Conversation).order_by(Conversation.id))
             assert conversation is not None
             result = {}
-            for name in ('assistant_runs','assistant_usage','assistant_budgets','assistant_alerts'):
+            for name in ('assistant_runs','assistant_usage','assistant_budgets','assistant_alerts',
+                         'assistant_policies','assistant_access','assistant_consents','assistant_run_access'):
                 rows = (await db.execute(text('SELECT * FROM ' + name))).mappings().all()
                 encoded = sorted(json.dumps(dict(row), sort_keys=True, default=str) for row in rows)
                 result[name] = hashlib.sha256('\n'.join(encoded).encode()).hexdigest()
@@ -41,4 +42,5 @@ with TestClient(create_app(mode='campus')) as client:
         headers={'Authorization':'Bearer '+token}, json={'content':'Synthetic rollback','request_key':'old-image-closed'})
     assert response.status_code == 503
 assert asyncio.run(inspect_state())[2] == before
-print(json.dumps({'old_image_campus_http':200,'old_image_new_run_http':503,'financial_hashes_unchanged':True}))
+print(json.dumps({'old_image_campus_http':200,'old_image_new_run_http':503,
+                  'financial_hashes_unchanged':True,'access_hashes_unchanged':True}))
